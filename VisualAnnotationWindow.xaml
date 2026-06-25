@@ -1,0 +1,58 @@
+<Window x:Class="PdfToolbox.VisualAnnotationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Posicionar Anotação - Clique no local desejado" Height="700" Width="900" WindowStartupLocation="CenterOwner" WindowState="Maximized">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#F5F5F5" Padding="10" BorderBrush="#D3D3D3" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Button Content="Página Anterior" Width="100" Margin="0,0,5,0" Click="BtnPrev_Click"/>
+                    <TextBlock x:Name="TxtPageInfo" Text="Página 1 / 1" VerticalAlignment="Center" Margin="5,0"/>
+                    <Button Content="Próxima Página" Width="100" Margin="5,0,0,0" Click="BtnNext_Click"/>
+                </StackPanel>
+                <TextBlock Text="Instrução: Clique na imagem abaixo no local exato onde deseja inserir o elemento." FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#333"/>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="DarkGray">
+            <Viewbox Stretch="Uniform" Margin="20">
+                <Border BorderBrush="Black" BorderThickness="1" Background="White">
+                    <Canvas x:Name="OverlayCanvas" Background="Transparent" Width="{Binding ActualWidth, ElementName=PdfImage}" Height="{Binding ActualHeight, ElementName=PdfImage}">
+                        <Image x:Name="PdfImage" Stretch="None" Canvas.Left="0" Canvas.Top="0" MouseMove="OverlayCanvas_MouseMove" MouseLeftButtonUp="OverlayCanvas_MouseLeftButtonUp"/>
+                        
+                        <!-- Elemento interativo flutuante (Oculto inicialmente) -->
+                        <Border x:Name="DraggableElement" Visibility="Hidden" Cursor="SizeAll" BorderBrush="Blue" BorderThickness="2" Canvas.Left="100" Canvas.Top="100"
+                                MouseLeftButtonDown="DraggableElement_MouseLeftButtonDown">
+                            <Grid>
+                                <!-- Se for Imagem -->
+                                <Image x:Name="FloatingImage" Stretch="Fill" Visibility="Collapsed"/>
+                                <!-- Se for Texto -->
+                                <TextBlock x:Name="FloatingText" Visibility="Collapsed" Background="Transparent" Padding="5"/>
+                                
+                                <!-- Alça Inferior Direita para Redimensionar (Só pra Imagem) -->
+                                <Thumb x:Name="ResizeThumb" Width="12" Height="12" Background="Red" 
+                                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNWSE"
+                                       DragDelta="ResizeThumb_DragDelta"/>
+                            </Grid>
+                        </Border>
+                    </Canvas>
+                </Border>
+            </Viewbox>
+        </ScrollViewer>
+
+        <!-- Botão Salvar Aqui (Aparece após carregar) -->
+        <Border Grid.Row="1" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,20,0,0" Background="#90000000" CornerRadius="10" Padding="15">
+            <Button x:Name="BtnConfirmSave" Content="✔ Salvar Aqui" FontSize="18" FontWeight="Bold" Background="Green" Foreground="White" Padding="20,10" Click="BtnConfirmSave_Click"/>
+        </Border>
+
+        <!-- Loading Overlay -->
+        <Border x:Name="LoadingOverlay" Grid.Row="0" Grid.RowSpan="2" Background="#80000000" Visibility="Hidden">
+            <TextBlock x:Name="LoadingText" Text="Carregando página..." Foreground="White" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+    </Grid>
+</Window>

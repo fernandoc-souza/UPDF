@@ -1,0 +1,99 @@
+<Window x:Class="PdfToolbox.OrganizePagesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Organizar Páginas" Height="600" Width="900"
+        WindowStartupLocation="CenterOwner"
+        Background="#F3F4F6">
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Toolbar -->
+        <Border Grid.Row="0" Background="White" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="10">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Inserir PDF" Width="100" Height="30" Margin="5" Click="BtnInsert_Click" Background="#10B981" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Separator Margin="10,0" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
+                <Button Content="Mover Esquerda" Width="110" Height="30" Margin="5" Click="BtnMoveLeft_Click" Background="#3B82F6" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Button Content="Mover Direita" Width="110" Height="30" Margin="5" Click="BtnMoveRight_Click" Background="#3B82F6" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Separator Margin="10,0" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
+                <Button Content="Excluir Página" Width="110" Height="30" Margin="5" Click="BtnDelete_Click" Background="#EF4444" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Page Thumbnails ListBox -->
+        <ListBox x:Name="PagesListBox" Grid.Row="1" Margin="10" Background="Transparent" BorderThickness="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 SelectionMode="Extended"
+                 AllowDrop="True"
+                 PreviewMouseLeftButtonDown="PagesListBox_PreviewMouseLeftButtonDown"
+                 MouseMove="PagesListBox_MouseMove"
+                 DragEnter="PagesListBox_DragEnter"
+                 Drop="PagesListBox_Drop">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel IsItemsHost="True" Orientation="Horizontal"/>
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border BorderBrush="#D1D5DB" BorderThickness="1" Background="White" Margin="10" Padding="5" Width="160" Height="220"
+                            CornerRadius="4" SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <Image Grid.Row="0" Source="{Binding Thumbnail}" Stretch="Uniform" Margin="5"/>
+                            
+                            <!-- Placeholder if no thumbnail -->
+                            <TextBlock Grid.Row="0" Text="PDF" FontSize="24" FontWeight="Bold" Foreground="#9CA3AF" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock Grid.Row="1" Text="{Binding DisplayPageNumber, StringFormat='{}Página {0}'}" 
+                                       HorizontalAlignment="Center" Margin="0,5,0,0" FontWeight="SemiBold" Foreground="#374151"/>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="Margin" Value="0"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Cursor" Value="Hand"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#DBEAFE"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </ListBox.ItemContainerStyle>
+        </ListBox>
+
+        <TextBlock x:Name="LoadingText" Grid.Row="1" Text="Carregando Miniaturas..." HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18" Foreground="#6B7280" Visibility="Collapsed"/>
+
+        <!-- Bottom Action Bar -->
+        <Border Grid.Row="2" Background="White" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Padding="15">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancelar" Width="100" Height="35" Margin="0,0,10,0" Click="BtnCancel_Click" Background="#E5E7EB" Foreground="#374151" BorderThickness="0" Cursor="Hand"/>
+                <Button Content="Salvar Novo PDF" Width="130" Height="35" Click="BtnSave_Click" Background="#4F46E5" Foreground="White" BorderThickness="0" Cursor="Hand" FontWeight="Bold"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

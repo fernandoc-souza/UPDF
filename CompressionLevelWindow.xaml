@@ -1,0 +1,34 @@
+<Window x:Class="PdfToolbox.CompressionLevelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nível de Compressão" Height="300" Width="400"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <TextBlock Text="Escolha o nível de compressão desejado:" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,15"/>
+        
+        <StackPanel Grid.Row="1">
+            <RadioButton x:Name="RbLevel1" GroupName="CompressionLevel" Margin="0,5,0,10">
+                <TextBlock Text="Nível 1 (Leve) - Apenas compressão estrutural sem mexer na qualidade das imagens. Ideal para não perder nitidez." TextWrapping="Wrap"/>
+            </RadioButton>
+            
+            <RadioButton x:Name="RbLevel2" GroupName="CompressionLevel" IsChecked="True" Margin="0,5,0,10">
+                <TextBlock Text="Nível 2 (Médio) - Mantém o tamanho das imagens originais mas otimiza a qualidade para 75%. Bom equilíbrio." TextWrapping="Wrap"/>
+            </RadioButton>
+            
+            <RadioButton x:Name="RbLevel3" GroupName="CompressionLevel" Margin="0,5,0,10">
+                <TextBlock Text="Nível 3 (Máximo) - Reduz drasticamente o tamanho do arquivo, diminuindo a resolução pela metade e usando qualidade de 30%." TextWrapping="Wrap"/>
+            </RadioButton>
+        </StackPanel>
+        
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Content="Cancelar" Width="100" Margin="0,0,10,0" Padding="5" Click="BtnCancel_Click"/>
+            <Button Content="Comprimir" Width="100" Padding="5" Background="#0078D7" Foreground="White" Click="BtnConfirm_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

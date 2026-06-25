@@ -1,0 +1,28 @@
+<Window x:Class="PdfToolbox.SignaturePlacementWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Desenhe o local da Assinatura" Height="800" Width="600"
+        WindowStartupLocation="CenterOwner" WindowState="Maximized">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Página 1. Clique e arraste na imagem para desenhar o retângulo onde a assinatura ficará." 
+                   Padding="10" Background="#FFF3CD" Foreground="#856404" FontSize="14" TextWrapping="Wrap"/>
+
+        <Viewbox Grid.Row="1" Stretch="Uniform" Margin="10">
+            <Canvas x:Name="PdfCanvas" Background="LightGray" MouseLeftButtonDown="PdfCanvas_MouseLeftButtonDown" MouseMove="PdfCanvas_MouseMove" MouseLeftButtonUp="PdfCanvas_MouseLeftButtonUp">
+                <Image x:Name="PdfImage" Stretch="None"/>
+                <Rectangle x:Name="SelectionRect" Stroke="Red" StrokeThickness="2" StrokeDashArray="2 2" Fill="#44FF0000" Visibility="Collapsed"/>
+            </Canvas>
+        </Viewbox>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10">
+            <Button Content="Cancelar" Width="100" Margin="0,0,10,0" Padding="5" Click="BtnCancel_Click"/>
+            <Button Content="Confirmar" Width="100" Padding="5" Click="BtnConfirm_Click" IsDefault="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

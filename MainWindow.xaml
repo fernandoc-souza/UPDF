@@ -1,0 +1,94 @@
+<Window x:Class="PdfToolbox.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="União PDF FCS (UPDF)" Height="600" Width="900" WindowState="Maximized"
+        Icon="app_icon.png">
+    <DockPanel>
+        
+        <!-- Menu Superior (estilo Windows/Adobe) -->
+        <Menu DockPanel.Dock="Top" Background="#F5F5F5" Padding="3">
+            <MenuItem Header="_Arquivo">
+                <MenuItem Header="Abrir PDF..." Click="BtnOpenPdf_Click"/>
+                <Separator/>
+                <MenuItem Header="Sair"/>
+            </MenuItem>
+            <MenuItem Header="_Ferramentas">
+                <MenuItem Header="Assinar Digitalmente" Click="BtnSignPdf_Click"/>
+                <MenuItem Header="Comprimir PDF" Click="BtnCompressPdf_Click"/>
+            </MenuItem>
+            <MenuItem Header="A_juda">
+                <MenuItem Header="Sobre o UPDF..." Click="BtnAbout_Click"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- Barra de Ferramentas Superior -->
+        <ToolBarTray DockPanel.Dock="Top" Background="#F5F5F5">
+            <ToolBar>
+                <Button Content="📂 Abrir" Click="BtnOpenPdf_Click" Margin="2,0"/>
+                <Separator/>
+                <Button x:Name="BtnSignPdf" Content="🔏 Assinar" Click="BtnSignPdf_Click" Margin="2,0" IsEnabled="False"/>
+                <Button x:Name="BtnCompressPdf" Content="🗜️ Comprimir" Click="BtnCompressPdf_Click" Margin="2,0" IsEnabled="False"/>
+                <Separator/>
+                <Button x:Name="BtnExportWord" Content="📄 Exportar Word" Click="BtnExportWord_Click" Margin="2,0" IsEnabled="False"/>
+                <Button x:Name="BtnExportExcel" Content="📊 Exportar Excel" Click="BtnExportExcel_Click" Margin="2,0" IsEnabled="False"/>
+                <Separator/>
+                <Button x:Name="BtnOrganizePages" Content="📑 Organizar Páginas" Click="BtnOrganizePages_Click" Margin="2,0" IsEnabled="False"/>
+                <Separator/>
+                <Button x:Name="BtnAddText" Content="📝 Inserir Texto" Click="BtnAddText_Click" Margin="2,0" IsEnabled="False"/>
+                <Button x:Name="BtnAddImage" Content="🖼️ Inserir Imagem" Click="BtnAddImage_Click" Margin="2,0" IsEnabled="False"/>
+            </ToolBar>
+        </ToolBarTray>
+
+        <!-- Área Principal com Side Panel -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Barra Lateral de Ferramentas (Esquerda) -->
+            <Border Grid.Column="0" BorderBrush="#D3D3D3" BorderThickness="0,0,1,0" Background="#FAFAFA">
+                <StackPanel Margin="15">
+                    <TextBlock Text="Ações Rápidas" FontSize="14" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,15"/>
+                    <TextBlock x:Name="TxtSidePanel" Text="Nenhum documento aberto. Clique em 'Abrir' para carregar um PDF." 
+                               Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,15"/>
+                    <Button x:Name="BtnSideSignPdf" Content="🔏 Assinar Certificado" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnSignPdf_Click" IsEnabled="False"/>
+                    <Button x:Name="BtnSideCompressPdf" Content="🗜️ Reduzir Tamanho" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnCompressPdf_Click" IsEnabled="False"/>
+                    <Button x:Name="BtnSideExportWord" Content="📄 Converter p/ Word" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnExportWord_Click" IsEnabled="False"/>
+                    <Button x:Name="BtnSideExportExcel" Content="📊 Converter p/ Excel" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnExportExcel_Click" IsEnabled="False"/>
+                    <Button x:Name="BtnSideOrganizePages" Content="📑 Organizar Páginas" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnOrganizePages_Click" IsEnabled="False"/>
+                    <TextBlock Text="Anotações" FontSize="14" FontWeight="SemiBold" Foreground="#333" Margin="0,15,0,5"/>
+                    <Button x:Name="BtnSideAddText" Content="📝 Inserir Texto" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnAddText_Click" IsEnabled="False"/>
+                    <Button x:Name="BtnSideAddImage" Content="🖼️ Inserir Imagem" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnAddImage_Click" IsEnabled="False"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Área do PDF -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Placeholder -->
+                <Border x:Name="PnlPlaceholder" Grid.Row="0" Margin="30" Background="White" BorderBrush="#333" BorderThickness="1">
+                    <Border.Effect>
+                        <DropShadowEffect Color="Black" Direction="320" ShadowDepth="5" Opacity="0.3"/>
+                    </Border.Effect>
+                    <TextBlock Text="Nenhum documento aberto.&#x0a;Clique em 'Abrir' para carregar um PDF." 
+                               HorizontalAlignment="Center" VerticalAlignment="Center" 
+                               Foreground="Gray" TextAlignment="Center" FontSize="16"/>
+                </Border>
+
+                <!-- TabControl para abas de PDF -->
+                <TabControl x:Name="TabPdfs" Grid.Row="0" Visibility="Hidden" SelectionChanged="TabPdfs_SelectionChanged" Padding="0" BorderThickness="0,1,0,0">
+                    <!-- TabItems serão adicionados dinamicamente no Code-Behind -->
+                </TabControl>
+
+                <!-- Status Bar -->
+                <TextBlock x:Name="TxtStatus" Grid.Row="1" Text="Pronto" VerticalAlignment="Bottom" Background="#F5F5F5" Padding="5"/>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</Window>
