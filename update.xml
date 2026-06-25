@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <item>
     <version>1.0.0.0</version>
-    <url>https://github.com/SEU_USUARIO/UPDF/releases/download/v1.0.0/UPDF_Arquivos.zip</url>
-    <changelog>https://github.com/SEU_USUARIO/UPDF/releases</changelog>
+    <url>https://github.com/fernandoc-souza/UPDF/releases/download/v1.0.0/Instalador_UPDF.zip</url>
+    <changelog>https://github.com/fernandoc-souza/UPDF/releases</changelog>
     <mandatory>false</mandatory>
 </item>
