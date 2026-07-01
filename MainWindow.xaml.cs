@@ -106,7 +106,20 @@ namespace PdfToolbox
 
         private void MainWindow_Closed(object sender, EventArgs e)
         {
+            try
+            {
+                foreach (var item in TabPdfs.Items)
+                {
+                    if (item is TabItem tabItem && tabItem.Content is Microsoft.Web.WebView2.Wpf.WebView2 wv)
+                    {
+                        wv.Dispose();
+                    }
+                }
+            }
+            catch { }
+
             Application.Current.Shutdown();
+            System.Diagnostics.Process.GetCurrentProcess().Kill(true);
             Environment.Exit(0);
         }
 
@@ -206,16 +219,16 @@ namespace PdfToolbox
             BtnExportWord.IsEnabled = habilitar;
             BtnExportExcel.IsEnabled = habilitar;
             BtnOrganizePages.IsEnabled = habilitar;
-            BtnAddText.IsEnabled = habilitar;
             BtnAddImage.IsEnabled = habilitar;
+            BtnFreeEditor.IsEnabled = habilitar;
 
             BtnSideSignPdf.IsEnabled = habilitar;
             BtnSideCompressPdf.IsEnabled = habilitar;
             BtnSideExportWord.IsEnabled = habilitar;
             BtnSideExportExcel.IsEnabled = habilitar;
             BtnSideOrganizePages.IsEnabled = habilitar;
-            BtnSideAddText.IsEnabled = habilitar;
             BtnSideAddImage.IsEnabled = habilitar;
+            BtnSideFreeEditor.IsEnabled = habilitar;
         }
 
         private void BtnAbout_Click(object sender, RoutedEventArgs e)
@@ -514,32 +527,6 @@ namespace PdfToolbox
             }
         }
 
-        private void BtnAddText_Click(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrEmpty(_caminhoPdfAtual)) return;
-
-            AddTextWindow textWindow = new AddTextWindow { Owner = this };
-            if (textWindow.ShowDialog() == true)
-            {
-                VisualAnnotationWindow visualWindow = new VisualAnnotationWindow(_caminhoPdfAtual)
-                {
-                    Owner = this,
-                    IsTextAnnotation = true,
-                    TextContent = textWindow.TextContent,
-                    FontName = textWindow.FontName,
-                    FontSize = textWindow.FontSize,
-                    TextColor = textWindow.TextColor
-                };
-
-                if (visualWindow.ShowDialog() == true && !string.IsNullOrEmpty(visualWindow.SavedFilePath))
-                {
-                    _caminhoPdfAtual = visualWindow.SavedFilePath;
-                    AbrirDocumento(_caminhoPdfAtual);
-                    TxtStatus.Text = "Texto adicionado e arquivo salvo com sucesso.";
-                }
-            }
-        }
-
         private void BtnAddImage_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(_caminhoPdfAtual)) return;
@@ -561,6 +548,27 @@ namespace PdfToolbox
                     TxtStatus.Text = "Imagem adicionada e arquivo salvo com sucesso.";
                 }
             }
+        }
+
+        private void BtnFreeEditor_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_caminhoPdfAtual)) return;
+
+            FreeEditorWindow freeEditorWindow = new FreeEditorWindow(_caminhoPdfAtual);
+            freeEditorWindow.Owner = this;
+            
+            // Esconde a MainWindow para focar no editor livre
+            this.Hide();
+
+            if (freeEditorWindow.ShowDialog() == true && !string.IsNullOrEmpty(freeEditorWindow.SavedFilePath))
+            {
+                _caminhoPdfAtual = freeEditorWindow.SavedFilePath;
+                AbrirDocumento(_caminhoPdfAtual);
+                TxtStatus.Text = "Anotações livres aplicadas e arquivo salvo.";
+            }
+
+            // Mostra a MainWindow de volta
+            this.Show();
         }
 
         private string GetUniqueFilePath(string originalPath, string suffix)

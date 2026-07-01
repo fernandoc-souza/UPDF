@@ -20,6 +20,13 @@ namespace PdfToolbox
         public double CanvasWidth { get; private set; }
         public double CanvasHeight { get; private set; }
 
+        private Windows.Data.Pdf.PdfDocument _pdfDoc;
+        private int _currentPage = 1;
+        private int _pageCount = 1;
+        
+        private double _currentZoom = 1.0;
+        private bool _isFirstLoad = true;
+
         public SignaturePlacementWindow(string pdfPath)
         {
             InitializeComponent();
@@ -28,34 +35,200 @@ namespace PdfToolbox
 
         private async void LoadPdfAsync(string pdfPath)
         {
+            LoadingOverlay.Visibility = Visibility.Visible;
             try
             {
-                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(pdfPath);
-                var pdfDoc = await PdfDocument.LoadFromFileAsync(file);
+                var fullPath = System.IO.Path.GetFullPath(pdfPath);
                 
-                if (pdfDoc.PageCount > 0)
+                // Copy to temp to avoid locks (same logic as VisualAnnotationWindow)
+                string tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
+                File.Copy(fullPath, tempFile, true);
+
+                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(tempFile);
+                _pdfDoc = await PdfDocument.LoadFromFileAsync(file);
+                
+                if (_pdfDoc.PageCount > 0)
                 {
-                    using (var page = pdfDoc.GetPage(0))
-                    {
-                        var stream = new InMemoryRandomAccessStream();
-                        await page.RenderToStreamAsync(stream);
-                        
-                        BitmapImage bitmap = new BitmapImage();
-                        bitmap.BeginInit();
-                        bitmap.StreamSource = stream.AsStream();
-                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                        bitmap.EndInit();
-                        
-                        PdfImage.Source = bitmap;
-                        PdfCanvas.Width = bitmap.PixelWidth;
-                        PdfCanvas.Height = bitmap.PixelHeight;
-                    }
+                    _pageCount = (int)_pdfDoc.PageCount;
+                    await RenderPage(_currentPage);
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Erro ao carregar pré-visualização: " + ex.Message, "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            finally
+            {
+                LoadingOverlay.Visibility = Visibility.Hidden;
+            }
+        }
+
+        private async Task RenderPage(int pageNumber)
+        {
+            TxtPageInfo.Text = $"Página {pageNumber} / {_pageCount}";
+            SelectionRect.Visibility = Visibility.Collapsed;
+            
+            try
+            {
+                using (var page = _pdfDoc.GetPage((uint)(pageNumber - 1)))
+                {
+                    using (var stream = new InMemoryRandomAccessStream())
+                    {
+                        var options = new Windows.Data.Pdf.PdfPageRenderOptions { DestinationWidth = (uint)(page.Size.Width * 1.5) };
+                        await page.RenderToStreamAsync(stream, options);
+                        
+                        using (Stream netStream = stream.AsStream())
+                        {
+                            netStream.Position = 0;
+                            using (MemoryStream ms = new MemoryStream())
+                            {
+                                await netStream.CopyToAsync(ms);
+                                
+                                BitmapImage bitmap = new BitmapImage();
+                                bitmap.BeginInit();
+                                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                                bitmap.StreamSource = new MemoryStream(ms.ToArray());
+                                bitmap.EndInit();
+                                
+                                PdfImage.Source = bitmap;
+                                PdfCanvas.Width = bitmap.PixelWidth;
+                                PdfCanvas.Height = bitmap.PixelHeight;
+
+                                // Aguardar a UI renderizar o tamanho do ScrollViewer
+                                await Task.Delay(50);
+                                if (_isFirstLoad)
+                                {
+                                    _isFirstLoad = false;
+                                    FitToScreen();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro ao renderizar página: " + ex.Message, "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void BtnPrev_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage > 1)
+            {
+                _currentPage--;
+                LoadingOverlay.Visibility = Visibility.Visible;
+                await RenderPage(_currentPage);
+                LoadingOverlay.Visibility = Visibility.Hidden;
+            }
+        }
+
+        private async void BtnNext_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage < _pageCount)
+            {
+                _currentPage++;
+                LoadingOverlay.Visibility = Visibility.Visible;
+                await RenderPage(_currentPage);
+                LoadingOverlay.Visibility = Visibility.Hidden;
+            }
+        }
+
+        private async void BtnFirst_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage > 1)
+            {
+                _currentPage = 1;
+                LoadingOverlay.Visibility = Visibility.Visible;
+                await RenderPage(_currentPage);
+                LoadingOverlay.Visibility = Visibility.Hidden;
+            }
+        }
+
+        private async void BtnLast_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage < _pageCount)
+            {
+                _currentPage = _pageCount;
+                LoadingOverlay.Visibility = Visibility.Visible;
+                await RenderPage(_currentPage);
+                LoadingOverlay.Visibility = Visibility.Hidden;
+            }
+        }
+
+        private void PageScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                if (e.Delta > 0)
+                    BtnZoomIn_Click(sender, new RoutedEventArgs());
+                else
+                    BtnZoomOut_Click(sender, new RoutedEventArgs());
+                
+                e.Handled = true;
+                return;
+            }
+
+            bool isScrollingDown = e.Delta < 0;
+
+            if (isScrollingDown)
+            {
+                // Se a rolagem chegou ao fim (ou se não tem barra de rolagem por caber na tela)
+                if (PageScrollViewer.ScrollableHeight == 0 || PageScrollViewer.VerticalOffset >= PageScrollViewer.ScrollableHeight - 1)
+                {
+                    if (_currentPage < _pageCount)
+                    {
+                        BtnNext_Click(sender, new RoutedEventArgs());
+                        e.Handled = true;
+                    }
+                }
+            }
+            else
+            {
+                // Se a rolagem chegou ao topo (ou não tem barra)
+                if (PageScrollViewer.ScrollableHeight == 0 || PageScrollViewer.VerticalOffset <= 1)
+                {
+                    if (_currentPage > 1)
+                    {
+                        BtnPrev_Click(sender, new RoutedEventArgs());
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void FitToScreen()
+        {
+            if (PdfCanvas.Width > 0 && PageScrollViewer.ActualWidth > 0)
+            {
+                double scaleX = (PageScrollViewer.ActualWidth - 40) / PdfCanvas.Width;
+                double scaleY = (PageScrollViewer.ActualHeight - 40) / PdfCanvas.Height;
+                _currentZoom = Math.Min(scaleX, scaleY);
+                if (_currentZoom > 2.0) _currentZoom = 2.0;
+                if (_currentZoom < 0.1) _currentZoom = 0.1;
+                ApplyZoom();
+            }
+        }
+
+        private void ApplyZoom()
+        {
+            PageScaleTransform.ScaleX = _currentZoom;
+            PageScaleTransform.ScaleY = _currentZoom;
+            TxtZoom.Text = $"{(int)(_currentZoom * 100)}%";
+        }
+
+        private void BtnZoomIn_Click(object sender, RoutedEventArgs e)
+        {
+            _currentZoom += 0.1;
+            if (_currentZoom > 5.0) _currentZoom = 5.0;
+            ApplyZoom();
+        }
+
+        private void BtnZoomOut_Click(object sender, RoutedEventArgs e)
+        {
+            _currentZoom -= 0.1;
+            if (_currentZoom < 0.1) _currentZoom = 0.1;
+            ApplyZoom();
         }
 
         private void PdfCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -121,6 +294,7 @@ namespace PdfToolbox
             CanvasWidth = PdfCanvas.Width;
             CanvasHeight = PdfCanvas.Height;
             
+            this.PageNumber = _currentPage;
             this.DialogResult = true;
             this.Close();
         }

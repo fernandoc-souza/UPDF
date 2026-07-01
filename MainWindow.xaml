@@ -35,8 +35,8 @@
                 <Separator/>
                 <Button x:Name="BtnOrganizePages" Content="📑 Organizar Páginas" Click="BtnOrganizePages_Click" Margin="2,0" IsEnabled="False"/>
                 <Separator/>
-                <Button x:Name="BtnAddText" Content="📝 Inserir Texto" Click="BtnAddText_Click" Margin="2,0" IsEnabled="False"/>
                 <Button x:Name="BtnAddImage" Content="🖼️ Inserir Imagem" Click="BtnAddImage_Click" Margin="2,0" IsEnabled="False"/>
+                <Button x:Name="BtnFreeEditor" Content="🖌️ Editor Livre" Click="BtnFreeEditor_Click" Margin="2,0" IsEnabled="False"/>
             </ToolBar>
         </ToolBarTray>
 
@@ -59,8 +59,8 @@
                     <Button x:Name="BtnSideExportExcel" Content="📊 Converter p/ Excel" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnExportExcel_Click" IsEnabled="False"/>
                     <Button x:Name="BtnSideOrganizePages" Content="📑 Organizar Páginas" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnOrganizePages_Click" IsEnabled="False"/>
                     <TextBlock Text="Anotações" FontSize="14" FontWeight="SemiBold" Foreground="#333" Margin="0,15,0,5"/>
-                    <Button x:Name="BtnSideAddText" Content="📝 Inserir Texto" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnAddText_Click" IsEnabled="False"/>
                     <Button x:Name="BtnSideAddImage" Content="🖼️ Inserir Imagem" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnAddImage_Click" IsEnabled="False"/>
+                    <Button x:Name="BtnSideFreeEditor" Content="🖌️ Editor Livre" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnFreeEditor_Click" IsEnabled="False"/>
                 </StackPanel>
             </Border>
 

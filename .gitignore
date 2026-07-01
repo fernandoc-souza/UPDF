@@ -1,0 +1,23 @@
+# Diretórios de compilação
+bin/
+obj/
+out_publish/
+DesktopEditors_x64
+
+# Arquivos temporários e de usuário
+*.user
+*.suo
+*.zip
+
+# Visual Studio e editores
+.vs/
+.vscode/
+
+# Binários e Publicações
+UPDF.exe
+publish_single/
+Staging_UPDF/
+Í%/
+*.exe
+*.zip
+*.pdb
