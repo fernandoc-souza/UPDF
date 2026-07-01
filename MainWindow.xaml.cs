@@ -15,7 +15,7 @@ namespace PdfToolbox
     public partial class MainWindow : Window
     {
         private Microsoft.Web.WebView2.Core.CoreWebView2Environment _env;
-        private const string CurrentVersion = "v1.0.0";
+        private const string CurrentVersion = "v1.1.0";
 
         private string _caminhoPdfAtual
         {
