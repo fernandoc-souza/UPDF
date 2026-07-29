@@ -43,25 +43,36 @@
         <!-- Área Principal com Side Panel -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220"/>
+                <ColumnDefinition x:Name="SideCol" Width="220"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- Barra Lateral de Ferramentas (Esquerda) -->
             <Border Grid.Column="0" BorderBrush="#D3D3D3" BorderThickness="0,0,1,0" Background="#FAFAFA">
-                <StackPanel Margin="15">
-                    <TextBlock Text="Ações Rápidas" FontSize="14" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,15"/>
-                    <TextBlock x:Name="TxtSidePanel" Text="Nenhum documento aberto. Clique em 'Abrir' para carregar um PDF." 
-                               Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,15"/>
-                    <Button x:Name="BtnSideSignPdf" Content="🔏 Assinar Certificado" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnSignPdf_Click" IsEnabled="False"/>
-                    <Button x:Name="BtnSideCompressPdf" Content="🗜️ Reduzir Tamanho" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnCompressPdf_Click" IsEnabled="False"/>
-                    <Button x:Name="BtnSideExportWord" Content="📄 Converter p/ Word" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnExportWord_Click" IsEnabled="False"/>
-                    <Button x:Name="BtnSideExportExcel" Content="📊 Converter p/ Excel" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnExportExcel_Click" IsEnabled="False"/>
-                    <Button x:Name="BtnSideOrganizePages" Content="📑 Organizar Páginas" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnOrganizePages_Click" IsEnabled="False"/>
-                    <TextBlock Text="Anotações" FontSize="14" FontWeight="SemiBold" Foreground="#333" Margin="0,15,0,5"/>
-                    <Button x:Name="BtnSideAddImage" Content="🖼️ Inserir Imagem" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnAddImage_Click" IsEnabled="False"/>
-                    <Button x:Name="BtnSideFreeEditor" Content="🖌️ Editor Livre" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnFreeEditor_Click" IsEnabled="False"/>
-                </StackPanel>
+                <DockPanel>
+                    <!-- Cabeçalho com botão de recolher/expandir -->
+                    <Grid DockPanel.Dock="Top" Margin="8,8,8,0">
+                        <TextBlock x:Name="TxtSideTitle" Text="Ações Rápidas" FontSize="14" FontWeight="SemiBold" Foreground="#333" VerticalAlignment="Center"/>
+                        <Button x:Name="BtnToggleSidebar" Content="&#x00AB;" ToolTip="Recolher painel" Width="34" Height="30"
+                                HorizontalAlignment="Right" Background="#E8E8E8" BorderBrush="#B0B0B0" BorderThickness="1"
+                                FontSize="20" FontWeight="Bold" Foreground="#333" Cursor="Hand"
+                                Click="BtnToggleSidebar_Click"/>
+                    </Grid>
+                    <ScrollViewer x:Name="SidePanelContent" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="15,10,15,15">
+                            <TextBlock x:Name="TxtSidePanel" Text="Nenhum documento aberto. Clique em 'Abrir' para carregar um PDF."
+                                       Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,15"/>
+                            <Button x:Name="BtnSideSignPdf" Content="🔏 Assinar Certificado" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnSignPdf_Click" IsEnabled="False"/>
+                            <Button x:Name="BtnSideCompressPdf" Content="🗜️ Reduzir Tamanho" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnCompressPdf_Click" IsEnabled="False"/>
+                            <Button x:Name="BtnSideExportWord" Content="📄 Converter p/ Word" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnExportWord_Click" IsEnabled="False"/>
+                            <Button x:Name="BtnSideExportExcel" Content="📊 Converter p/ Excel" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnExportExcel_Click" IsEnabled="False"/>
+                            <Button x:Name="BtnSideOrganizePages" Content="📑 Organizar Páginas" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnOrganizePages_Click" IsEnabled="False"/>
+                            <TextBlock Text="Anotações" FontSize="14" FontWeight="SemiBold" Foreground="#333" Margin="0,15,0,5"/>
+                            <Button x:Name="BtnSideAddImage" Content="🖼️ Inserir Imagem" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnAddImage_Click" IsEnabled="False"/>
+                            <Button x:Name="BtnSideFreeEditor" Content="🖌️ Editor Livre" Margin="0,5" Padding="8" HorizontalContentAlignment="Left" Click="BtnFreeEditor_Click" IsEnabled="False"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <!-- Área do PDF -->

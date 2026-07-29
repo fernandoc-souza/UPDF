@@ -146,20 +146,57 @@ namespace PdfToolbox
             PnlPlaceholder.Visibility = Visibility.Hidden;
             TabPdfs.Visibility = Visibility.Visible;
 
-            var tabItem = new TabItem();
+            var webView = new WebView2 { Margin = new Thickness(0) };
+            var tabItem = CriarAba(Path.GetFileName(caminho), caminho, webView, webView);
             tabItem.Tag = caminho;
-            tabItem.ToolTip = caminho;
+
+            TabPdfs.Items.Add(tabItem);
+            TabPdfs.SelectedItem = tabItem;
+
+            if (_env != null)
+            {
+                await webView.EnsureCoreWebView2Async(_env);
+            }
+            else
+            {
+                await webView.EnsureCoreWebView2Async();
+            }
+
+            // Cliques em links dentro do PDF abrem em nova aba de navegador (não na aba do PDF)
+            webView.CoreWebView2.NewWindowRequested += (s, args) =>
+            {
+                args.Handled = true;
+                string u = args.Uri;
+                Dispatcher.InvokeAsync(() => CriarAbaNavegador(u));
+            };
+            webView.CoreWebView2.NavigationStarting += (s, args) =>
+            {
+                string u = args.Uri ?? string.Empty;
+                if (u.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    u.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    args.Cancel = true; // não navega a aba do PDF
+                    Dispatcher.InvokeAsync(() => CriarAbaNavegador(u));
+                }
+            };
+
+            webView.Source = new Uri(caminho);
+
+            AtualizarEstadoBotoes(true);
+        }
+
+        // Cria uma aba com cabeçalho (título + botão fechar) reutilizável para PDF e navegador.
+        private TabItem CriarAba(string titulo, string tooltip, UIElement conteudo, WebView2 webViewDispose)
+        {
+            var tabItem = new TabItem { ToolTip = tooltip };
 
             var headerPanel = new StackPanel { Orientation = Orientation.Horizontal };
-            var titleText = new TextBlock { Text = Path.GetFileName(caminho), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            var titleText = new TextBlock { Text = titulo, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
             var closeButton = new Button { Content = "X", Padding = new Thickness(5, 0, 5, 0), Background = System.Windows.Media.Brushes.Transparent, BorderThickness = new Thickness(0) };
-            
+
             closeButton.Click += (s, e) =>
             {
-                if (tabItem.Content is WebView2 wv)
-                {
-                    wv.Dispose();
-                }
+                try { webViewDispose?.Dispose(); } catch { }
                 TabPdfs.Items.Remove(tabItem);
                 if (TabPdfs.Items.Count == 0)
                 {
@@ -175,36 +212,161 @@ namespace PdfToolbox
             headerPanel.Children.Add(titleText);
             headerPanel.Children.Add(closeButton);
             tabItem.Header = headerPanel;
+            tabItem.Content = conteudo;
+            return tabItem;
+        }
 
-            var webView = new WebView2 { Margin = new Thickness(0) };
-            tabItem.Content = webView;
-            TabPdfs.Items.Add(tabItem);
-            TabPdfs.SelectedItem = tabItem;
-            
+        private Button CriarBotaoNav(string conteudo, string tooltip)
+        {
+            return new Button
+            {
+                Content = conteudo,
+                ToolTip = tooltip,
+                Width = 32,
+                Height = 26,
+                Margin = new Thickness(2, 4, 2, 4),
+                FontSize = 14,
+                Background = System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+        }
+
+        // Abre uma página web em nova aba, com barra de navegação (voltar/avançar/recarregar/URL).
+        private async void CriarAbaNavegador(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return;
+
+            PnlPlaceholder.Visibility = Visibility.Hidden;
+            TabPdfs.Visibility = Visibility.Visible;
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            var barra = new DockPanel
+            {
+                LastChildFill = true,
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF0, 0xF0, 0xF0))
+            };
+            Grid.SetRow(barra, 0);
+
+            var btnBack = CriarBotaoNav("◀", "Voltar");
+            var btnFwd = CriarBotaoNav("▶", "Avançar");
+            var btnReload = CriarBotaoNav("⟳", "Recarregar");
+            var btnExt = CriarBotaoNav("\U0001F310", "Abrir no navegador padrão");
+            var txtUrl = new TextBox
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4, 4, 4, 4),
+                Padding = new Thickness(4, 2, 4, 2),
+                Text = url
+            };
+
+            DockPanel.SetDock(btnBack, Dock.Left);
+            DockPanel.SetDock(btnFwd, Dock.Left);
+            DockPanel.SetDock(btnReload, Dock.Left);
+            DockPanel.SetDock(btnExt, Dock.Right);
+            barra.Children.Add(btnBack);
+            barra.Children.Add(btnFwd);
+            barra.Children.Add(btnReload);
+            barra.Children.Add(btnExt);
+            barra.Children.Add(txtUrl); // preenche o restante
+
+            var wv = new WebView2();
+            Grid.SetRow(wv, 1);
+            grid.Children.Add(barra);
+            grid.Children.Add(wv);
+
+            string host;
+            try { host = new Uri(url).Host; } catch { host = "Navegador"; }
+
+            var tab = CriarAba(host, url, grid, wv);
+            tab.Tag = null; // sem caminho PDF: é aba de navegador
+            TabPdfs.Items.Add(tab);
+            TabPdfs.SelectedItem = tab;
+
+            var titleText = ((StackPanel)tab.Header).Children[0] as TextBlock;
+
             if (_env != null)
             {
-                await webView.EnsureCoreWebView2Async(_env);
+                await wv.EnsureCoreWebView2Async(_env);
             }
             else
             {
-                await webView.EnsureCoreWebView2Async();
+                await wv.EnsureCoreWebView2Async();
             }
-            
-            webView.Source = new Uri(caminho);
-            
-            AtualizarEstadoBotoes(true);
+
+            btnBack.Click += (s, e) => { if (wv.CoreWebView2.CanGoBack) wv.CoreWebView2.GoBack(); };
+            btnFwd.Click += (s, e) => { if (wv.CoreWebView2.CanGoForward) wv.CoreWebView2.GoForward(); };
+            btnReload.Click += (s, e) => wv.CoreWebView2.Reload();
+            btnExt.Click += (s, e) =>
+            {
+                try { Process.Start(new ProcessStartInfo(wv.CoreWebView2.Source) { UseShellExecute = true }); } catch { }
+            };
+            txtUrl.KeyDown += (s, e) =>
+            {
+                if (e.Key == System.Windows.Input.Key.Enter)
+                {
+                    string alvo = txtUrl.Text.Trim();
+                    if (!alvo.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                        !alvo.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        alvo = "https://" + alvo;
+                    }
+                    try { wv.CoreWebView2.Navigate(alvo); } catch { }
+                }
+            };
+            wv.CoreWebView2.SourceChanged += (s, e) =>
+            {
+                txtUrl.Text = wv.CoreWebView2.Source;
+                btnBack.IsEnabled = wv.CoreWebView2.CanGoBack;
+                btnFwd.IsEnabled = wv.CoreWebView2.CanGoForward;
+            };
+            wv.CoreWebView2.HistoryChanged += (s, e) =>
+            {
+                btnBack.IsEnabled = wv.CoreWebView2.CanGoBack;
+                btnFwd.IsEnabled = wv.CoreWebView2.CanGoForward;
+            };
+            wv.CoreWebView2.DocumentTitleChanged += (s, e) =>
+            {
+                if (titleText != null)
+                {
+                    string t = wv.CoreWebView2.DocumentTitle;
+                    titleText.Text = string.IsNullOrWhiteSpace(t) ? host : (t.Length > 30 ? t.Substring(0, 30) + "…" : t);
+                }
+            };
+            // Links target=_blank dentro do navegador abrem na própria aba (evita popups)
+            wv.CoreWebView2.NewWindowRequested += (s, args) =>
+            {
+                args.Handled = true;
+                try { wv.CoreWebView2.Navigate(args.Uri); } catch { }
+            };
+
+            wv.CoreWebView2.Navigate(url);
+            btnBack.IsEnabled = false;
+            btnFwd.IsEnabled = false;
         }
 
         private void TabPdfs_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (e.OriginalSource != TabPdfs) return;
 
-            if (TabPdfs.SelectedItem is TabItem selectedTab && selectedTab.Tag is string caminho)
+            if (TabPdfs.SelectedItem is TabItem selectedTab)
             {
-                TxtStatus.Text = $"Arquivo aberto: {caminho}";
-                TxtSidePanel.Text = "Documento carregado. Você já pode utilizar as ferramentas superiores para Assinar, Comprimir ou Exportar este arquivo.";
-                TxtSidePanel.Foreground = System.Windows.Media.Brushes.Black;
-                AtualizarEstadoBotoes(true);
+                if (selectedTab.Tag is string caminho && selectedTab.Content is WebView2)
+                {
+                    TxtStatus.Text = $"Arquivo aberto: {caminho}";
+                    TxtSidePanel.Text = "Documento carregado. Você já pode utilizar as ferramentas superiores para Assinar, Comprimir ou Exportar este arquivo.";
+                    TxtSidePanel.Foreground = System.Windows.Media.Brushes.Black;
+                    AtualizarEstadoBotoes(true);
+                }
+                else
+                {
+                    // Aba de navegador: ferramentas de PDF não se aplicam
+                    TxtStatus.Text = "Página web aberta no navegador interno.";
+                    AtualizarEstadoBotoes(false);
+                }
             }
             else if (TabPdfs.Items.Count == 0)
             {
@@ -229,6 +391,28 @@ namespace PdfToolbox
             BtnSideOrganizePages.IsEnabled = habilitar;
             BtnSideAddImage.IsEnabled = habilitar;
             BtnSideFreeEditor.IsEnabled = habilitar;
+        }
+
+        private bool _sidebarCollapsed = false;
+        private void BtnToggleSidebar_Click(object sender, RoutedEventArgs e)
+        {
+            _sidebarCollapsed = !_sidebarCollapsed;
+            if (_sidebarCollapsed)
+            {
+                SideCol.Width = new GridLength(40);
+                SidePanelContent.Visibility = Visibility.Collapsed;
+                TxtSideTitle.Visibility = Visibility.Collapsed;
+                BtnToggleSidebar.Content = "»"; // »
+                BtnToggleSidebar.ToolTip = "Expandir painel";
+            }
+            else
+            {
+                SideCol.Width = new GridLength(220);
+                SidePanelContent.Visibility = Visibility.Visible;
+                TxtSideTitle.Visibility = Visibility.Visible;
+                BtnToggleSidebar.Content = "«"; // «
+                BtnToggleSidebar.ToolTip = "Recolher painel";
+            }
         }
 
         private void BtnAbout_Click(object sender, RoutedEventArgs e)

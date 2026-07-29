@@ -1,0 +1,36 @@
+==================================================
+  Uniao PDF FCS (UPDF) - Instalacao
+==================================================
+
+COMO INSTALAR
+-------------
+1. Clique com o botao direito em "Instalar.bat"
+2. Escolha "Executar como administrador"
+   (ou apenas de dois cliques e confirme o aviso do Windows)
+3. Aguarde a mensagem "UPDF instalado com sucesso!"
+
+Pronto. Sera criado:
+  - Um atalho na Area de Trabalho
+  - Um atalho no Menu Iniciar
+
+O programa e instalado em: C:\Program Files\UPDF
+
+
+COMO DESINSTALAR
+----------------
+Opcao A: Menu Iniciar > Configuracoes > Aplicativos >
+         "Uniao PDF FCS (UPDF)" > Desinstalar
+
+Opcao B: Execute "Desinstalar.bat" como administrador
+         (fica em C:\Program Files\UPDF)
+
+
+OBSERVACAO
+----------
+O programa exibe PDFs usando o WebView2 Runtime.
+No Windows 11 ele ja vem instalado de fabrica.
+Se em alguma maquina o PDF nao abrir, instale o runtime
+gratuito da Microsoft (Evergreen Standalone Installer):
+https://developer.microsoft.com/microsoft-edge/webview2/
+
+==================================================
