@@ -15,7 +15,7 @@ namespace PdfToolbox
     public partial class MainWindow : Window
     {
         private Microsoft.Web.WebView2.Core.CoreWebView2Environment _env;
-        private const string CurrentVersion = "v1.1.0";
+        private const string CurrentVersion = "v1.2.0";
 
         private string _caminhoPdfAtual
         {
@@ -418,7 +418,7 @@ namespace PdfToolbox
         private void BtnAbout_Click(object sender, RoutedEventArgs e)
         {
             string aboutText = "União PDF FCS (UPDF)\n" +
-                               "Versão 1.0\n\n" +
+                               "Versão 1.2.0\n\n" +
                                "Um sistema avançado para visualização, assinatura, compressão e organização de documentos PDF.\n\n" +
                                "Criador: Fernando CS\n\n" +
                                "Se o UPDF foi útil pra você faça uma doação pelo pix: 27999021489.";
