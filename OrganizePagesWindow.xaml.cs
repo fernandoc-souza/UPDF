@@ -139,12 +139,16 @@ namespace PdfToolbox
             OpenFileDialog openFileDialog = new OpenFileDialog
             {
                 Filter = "Arquivos PDF (*.pdf)|*.pdf",
-                Title = "Selecionar PDF para Inserir"
+                Title = "Selecionar um ou mais PDFs para Inserir",
+                Multiselect = true
             };
 
             if (openFileDialog.ShowDialog() == true)
             {
-                await LoadPdfPagesAsync(openFileDialog.FileName);
+                foreach (string arquivo in openFileDialog.FileNames)
+                {
+                    await LoadPdfPagesAsync(arquivo);
+                }
             }
         }
 

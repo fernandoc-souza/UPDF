@@ -19,6 +19,8 @@ namespace PdfToolbox
         public int PageNumber { get; private set; } = 1;
         public double CanvasWidth { get; private set; }
         public double CanvasHeight { get; private set; }
+        public int PageCount => _pageCount;
+        public bool ApplyToAllPages { get; private set; } = false;
 
         private Windows.Data.Pdf.PdfDocument _pdfDoc;
         private int _currentPage = 1;
@@ -286,14 +288,27 @@ namespace PdfToolbox
                 return;
             }
             
+            // Pergunta se assina em todas as páginas ou só na atual (mesma posição).
+            if (_pageCount > 1)
+            {
+                var resp = MessageBox.Show(
+                    "Deseja assinar em TODAS as páginas nesta mesma posição?\n\n" +
+                    "Sim = assina em todas as páginas\n" +
+                    "Não = assina somente na página atual",
+                    "Assinar páginas", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+                if (resp == MessageBoxResult.Cancel) return; // volta pra ajustar
+                ApplyToAllPages = (resp == MessageBoxResult.Yes);
+            }
+
             double pdfHeight = PdfCanvas.Height;
             double invertedY = pdfHeight - SelectedRect.Y - SelectedRect.Height;
-            
+
             SelectedRect = new Rect(SelectedRect.X, invertedY, SelectedRect.Width, SelectedRect.Height);
-            
+
             CanvasWidth = PdfCanvas.Width;
             CanvasHeight = PdfCanvas.Height;
-            
+
             this.PageNumber = _currentPage;
             this.DialogResult = true;
             this.Close();

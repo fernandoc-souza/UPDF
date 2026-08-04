@@ -191,7 +191,7 @@ namespace PdfToolbox
             var tabItem = new TabItem { ToolTip = tooltip };
 
             var headerPanel = new StackPanel { Orientation = Orientation.Horizontal };
-            var titleText = new TextBlock { Text = titulo, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            var titleText = new TextBlock { Text = titulo, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0), MaxWidth = 150, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = titulo };
             var closeButton = new Button { Content = "X", Padding = new Thickness(5, 0, 5, 0), Background = System.Windows.Media.Brushes.Transparent, BorderThickness = new Thickness(0) };
 
             closeButton.Click += (s, e) =>
@@ -348,6 +348,16 @@ namespace PdfToolbox
             btnFwd.IsEnabled = false;
         }
 
+        // Roda do mouse sobre a faixa de abas rola horizontalmente (abas ficam sempre na mesma linha).
+        private void TabHeaderScroll_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            if (sender is ScrollViewer sv)
+            {
+                sv.ScrollToHorizontalOffset(sv.HorizontalOffset - e.Delta);
+                e.Handled = true;
+            }
+        }
+
         private void TabPdfs_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (e.OriginalSource != TabPdfs) return;
@@ -444,7 +454,7 @@ namespace PdfToolbox
             }
         }
 
-        private void BtnSignPdf_Click(object sender, RoutedEventArgs e)
+        private async void BtnSignPdf_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -454,13 +464,16 @@ namespace PdfToolbox
                     return;
                 }
 
-                // 0. Escolher local visual
-                SignaturePlacementWindow placementWin = new SignaturePlacementWindow(_caminhoPdfAtual);
+                string origem = _caminhoPdfAtual;
+
+                // 0. Escolher local visual (e se assina todas as páginas ou só a atual)
+                SignaturePlacementWindow placementWin = new SignaturePlacementWindow(origem);
                 placementWin.Owner = this;
                 if (placementWin.ShowDialog() != true) return; // cancelou
 
                 Rect sigRect = placementWin.SelectedRect;
                 int sigPage = placementWin.PageNumber;
+                bool todasPaginas = placementWin.ApplyToAllPages;
 
                 // 1. Abrir a loja de certificados
                 System.Security.Cryptography.X509Certificates.X509Store store = new System.Security.Cryptography.X509Certificates.X509Store(System.Security.Cryptography.X509Certificates.StoreName.My, System.Security.Cryptography.X509Certificates.StoreLocation.CurrentUser);
@@ -477,75 +490,181 @@ namespace PdfToolbox
 
                 System.Security.Cryptography.X509Certificates.X509Certificate2 cert = sel[0];
 
-                // 3. Escolher o arquivo de destino
-                string dirOriginal = System.IO.Path.GetDirectoryName(_caminhoPdfAtual);
-                string nomeOriginal = System.IO.Path.GetFileNameWithoutExtension(_caminhoPdfAtual);
-                string novoNome = $"{nomeOriginal}_assinado.pdf";
+                // 3. Perguntar: gerar novo arquivo ou substituir o atual?
+                var escolha = MessageBox.Show(
+                    "Como deseja salvar a assinatura?\n\n" +
+                    "Sim = SUBSTITUIR o arquivo atual\n" +
+                    "Não = gerar um NOVO arquivo",
+                    "Salvar PDF assinado", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
 
-                SaveFileDialog saveFileDialog = new SaveFileDialog
+                if (escolha == MessageBoxResult.Cancel) return;
+                bool substituir = (escolha == MessageBoxResult.Yes);
+
+                string dest;
+                if (substituir)
                 {
-                    InitialDirectory = dirOriginal,
-                    FileName = novoNome,
-                    Filter = "Arquivos PDF (*.pdf)|*.pdf",
-                    Title = "Salvar PDF Assinado"
-                };
-
-                if (saveFileDialog.ShowDialog() == true)
-                {
-                    string dest = saveFileDialog.FileName;
-
-                    // 4. Converter certificado para iText7 BC
-                    Org.BouncyCastle.X509.X509CertificateParser parser = new Org.BouncyCastle.X509.X509CertificateParser();
-                    Org.BouncyCastle.X509.X509Certificate bcCert = parser.ReadCertificate(cert.RawData);
-                    iText.Commons.Bouncycastle.Cert.IX509Certificate[] chain = new iText.Commons.Bouncycastle.Cert.IX509Certificate[1];
-                    chain[0] = new iText.Bouncycastle.X509.X509CertificateBC(bcCert);
-
-                    // 5. Assinar
-                    using (iText.Kernel.Pdf.PdfReader reader = new iText.Kernel.Pdf.PdfReader(_caminhoPdfAtual))
-                    using (System.IO.FileStream fs = new System.IO.FileStream(dest, System.IO.FileMode.Create))
-                    {
-                        iText.Signatures.PdfSigner signer = new iText.Signatures.PdfSigner(reader, fs, new iText.Kernel.Pdf.StampingProperties());
-                        
-                        iText.Kernel.Pdf.PdfDocument pdfDoc = signer.GetDocument();
-                        iText.Kernel.Geom.Rectangle pageSize = pdfDoc.GetPage(sigPage).GetPageSize();
-                        
-                        float pdfWidth = pageSize.GetWidth();
-                        float pdfHeight = pageSize.GetHeight();
-                        
-                        float scaleX = pdfWidth / (float)placementWin.CanvasWidth;
-                        float scaleY = pdfHeight / (float)placementWin.CanvasHeight;
-                        
-                        float rectX = (float)sigRect.X * scaleX;
-                        float rectY = (float)sigRect.Y * scaleY;
-                        float rectW = (float)sigRect.Width * scaleX;
-                        float rectH = (float)sigRect.Height * scaleY;
-
-                        signer.SetPageRect(new iText.Kernel.Geom.Rectangle(rectX, rectY, rectW, rectH));
-                        signer.SetPageNumber(sigPage);
-                        iText.Signatures.PdfSignatureAppearance appearance = signer.GetSignatureAppearance();
-                        
-                        appearance.SetReason("Assinatura Digital");
-                        appearance.SetRenderingMode(iText.Signatures.PdfSignatureAppearance.RenderingMode.NAME_AND_DESCRIPTION);
-                        
-                        string nomeSignatario = cert.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false);
-                        string dataAssinatura = DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss zzz");
-                        appearance.SetLayer2Text($"Assinado de forma digital por {nomeSignatario}\nDados: {dataAssinatura}");
-
-                        iText.Signatures.IExternalSignature pks = new CustomX509Certificate2Signature(cert, "SHA-256");
-
-                        signer.SignDetached(pks, chain, null, null, null, 0, iText.Signatures.PdfSigner.CryptoStandard.CMS);
-                    }
-
-                    MessageBox.Show("Documento assinado com sucesso!\n\nSalvo em: " + dest, "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
-                    
-                    // Opcional: carregar o novo arquivo
-                    _caminhoPdfAtual = dest;
-                    TxtStatus.Text = $"Arquivo aberto: {_caminhoPdfAtual}";
+                    dest = origem;
                 }
+                else
+                {
+                    string dirOriginal = System.IO.Path.GetDirectoryName(origem);
+                    string nomeOriginal = System.IO.Path.GetFileNameWithoutExtension(origem);
+                    SaveFileDialog saveFileDialog = new SaveFileDialog
+                    {
+                        InitialDirectory = dirOriginal,
+                        FileName = $"{nomeOriginal}_assinado.pdf",
+                        Filter = "Arquivos PDF (*.pdf)|*.pdf",
+                        Title = "Salvar PDF Assinado"
+                    };
+                    if (saveFileDialog.ShowDialog() != true) return;
+                    dest = saveFileDialog.FileName;
+                }
+
+                // 4. Converter certificado para iText7 BC
+                Org.BouncyCastle.X509.X509CertificateParser parser = new Org.BouncyCastle.X509.X509CertificateParser();
+                Org.BouncyCastle.X509.X509Certificate bcCert = parser.ReadCertificate(cert.RawData);
+                iText.Commons.Bouncycastle.Cert.IX509Certificate[] chain = new iText.Commons.Bouncycastle.Cert.IX509Certificate[1];
+                chain[0] = new iText.Bouncycastle.X509.X509CertificateBC(bcCert);
+
+                // 5. Definir páginas a assinar
+                var paginas = new System.Collections.Generic.List<int>();
+                if (todasPaginas)
+                {
+                    for (int p = 1; p <= placementWin.PageCount; p++) paginas.Add(p);
+                }
+                else
+                {
+                    paginas.Add(sigPage);
+                }
+
+                // 6. Assinar (sequencialmente, uma assinatura real por página) num arquivo temporário
+                string assinadoTemp = await Task.Run(() => AssinarPaginas(
+                    origem, paginas, sigRect, placementWin.CanvasWidth, placementWin.CanvasHeight, cert, chain));
+
+                // 7. Gravar no destino final
+                if (substituir)
+                {
+                    // Libera o bloqueio do WebView2 sobre o arquivo atual antes de sobrescrever
+                    var tab = TabPdfs.SelectedItem as TabItem;
+                    var wv = tab?.Content as WebView2;
+                    if (wv != null)
+                    {
+                        wv.Source = new Uri("about:blank");
+                        await Task.Delay(400);
+                    }
+                    System.IO.File.Copy(assinadoTemp, dest, true);
+                    if (wv != null) wv.Source = new Uri(dest);
+                }
+                else
+                {
+                    System.IO.File.Copy(assinadoTemp, dest, true);
+                    _caminhoPdfAtual = dest; // repõe a aba atual apontando pro novo arquivo
+                }
+
+                try { System.IO.File.Delete(assinadoTemp); } catch { }
+
+                TxtStatus.Text = $"Arquivo aberto: {dest}";
+                string msgPaginas = todasPaginas ? $"em todas as {paginas.Count} páginas" : $"na página {sigPage}";
+                MessageBox.Show($"Documento assinado com sucesso ({msgPaginas})!\n\nSalvo em: {dest}", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Erro ao assinar: " + ex.Message, "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Assina cada página da lista na mesma posição proporcional. Cada página recebe uma assinatura
+        // digital real; a partir da 2ª usa modo append para preservar as assinaturas anteriores.
+        // Retorna o caminho de um arquivo temporário com o resultado final.
+        private string AssinarPaginas(
+            string origem,
+            System.Collections.Generic.List<int> paginas,
+            Rect sigRect,
+            double canvasWidth,
+            double canvasHeight,
+            System.Security.Cryptography.X509Certificates.X509Certificate2 cert,
+            iText.Commons.Bouncycastle.Cert.IX509Certificate[] chain)
+        {
+            string nomeSignatario = cert.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false);
+            string dataAssinatura = DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss zzz");
+
+            string atual = origem;   // fonte da vez
+            string anterior = null;  // temp intermediário a apagar
+
+            for (int idx = 0; idx < paginas.Count; idx++)
+            {
+                int pagina = paginas[idx];
+                string saida = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
+
+                var props = new iText.Kernel.Pdf.StampingProperties();
+                if (idx > 0) props.UseAppendMode(); // preserva assinaturas já aplicadas
+
+                using (iText.Kernel.Pdf.PdfReader reader = new iText.Kernel.Pdf.PdfReader(atual))
+                using (System.IO.FileStream fs = new System.IO.FileStream(saida, System.IO.FileMode.Create))
+                {
+                    iText.Signatures.PdfSigner signer = new iText.Signatures.PdfSigner(reader, fs, props);
+
+                    iText.Kernel.Pdf.PdfDocument pdfDoc = signer.GetDocument();
+                    iText.Kernel.Pdf.PdfPage pdfPage = pdfDoc.GetPage(pagina);
+                    iText.Kernel.Geom.Rectangle pageSize = pdfPage.GetPageSize();
+
+                    float PW = pageSize.GetWidth();
+                    float PH = pageSize.GetHeight();
+                    int rot = ((pdfPage.GetRotation() % 360) + 360) % 360;
+
+                    // Dimensões visíveis (renderizadas) em pontos: trocam quando a página é girada 90/270.
+                    float VW = (rot == 90 || rot == 270) ? PH : PW;
+                    float VH = (rot == 90 || rot == 270) ? PW : PH;
+
+                    // Retângulo desenhado, em pontos, na orientação visível (origem inferior-esquerda).
+                    float vx0 = (float)(sigRect.X / canvasWidth) * VW;
+                    float vy0 = (float)(sigRect.Y / canvasHeight) * VH;
+                    float vx1 = (float)((sigRect.X + sigRect.Width) / canvasWidth) * VW;
+                    float vy1 = (float)((sigRect.Y + sigRect.Height) / canvasHeight) * VH;
+
+                    // Mapeia cada canto do espaço visível para o espaço não-rotacionado da página.
+                    var p0 = MapearParaPagina(vx0, vy0, rot, PW, PH);
+                    var p1 = MapearParaPagina(vx1, vy1, rot, PW, PH);
+
+                    float rectX = Math.Min(p0.Item1, p1.Item1);
+                    float rectY = Math.Min(p0.Item2, p1.Item2);
+                    float rectW = Math.Abs(p1.Item1 - p0.Item1);
+                    float rectH = Math.Abs(p1.Item2 - p0.Item2);
+
+                    signer.SetPageRect(new iText.Kernel.Geom.Rectangle(rectX, rectY, rectW, rectH));
+                    signer.SetPageNumber(pagina);
+                    signer.SetFieldName($"Assinatura_p{pagina}"); // nome único por página
+
+                    iText.Signatures.PdfSignatureAppearance appearance = signer.GetSignatureAppearance();
+                    appearance.SetReason("Assinatura Digital");
+                    appearance.SetRenderingMode(iText.Signatures.PdfSignatureAppearance.RenderingMode.NAME_AND_DESCRIPTION);
+                    appearance.SetLayer2Text($"Assinado de forma digital por {nomeSignatario}\nDados: {dataAssinatura}");
+
+                    iText.Signatures.IExternalSignature pks = new CustomX509Certificate2Signature(cert, "SHA-256");
+                    signer.SignDetached(pks, chain, null, null, null, 0, iText.Signatures.PdfSigner.CryptoStandard.CMS);
+                }
+
+                if (anterior != null)
+                {
+                    try { System.IO.File.Delete(anterior); } catch { }
+                }
+                anterior = saida;
+                atual = saida;
+            }
+
+            return atual;
+        }
+
+        // Converte um ponto (origem inferior-esquerda) do espaço visível/renderizado para o
+        // espaço de coordenadas não-rotacionado da página, conforme a rotação /Rotate (horária).
+        private static Tuple<float, float> MapearParaPagina(float vx, float vy, int rot, float PW, float PH)
+        {
+            switch (rot)
+            {
+                case 90: return Tuple.Create(PW - vy, vx);
+                case 180: return Tuple.Create(PW - vx, PH - vy);
+                case 270: return Tuple.Create(vy, PH - vx);
+                default: return Tuple.Create(vx, vy);
             }
         }
 
