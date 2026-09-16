@@ -52,7 +52,7 @@ namespace PdfToolbox
                             
                             foreach (var col in columns)
                             {
-                                Cell cell = new Cell() { DataType = CellValues.String, CellValue = new CellValue(col.Trim()) };
+                                Cell cell = new Cell() { DataType = CellValues.InlineString, InlineString = new InlineString(new Text(col.Trim())) };
                                 row.Append(cell);
                             }
                             

@@ -13,10 +13,30 @@ namespace PdfToolbox
 {
     public static class PdfStamperHelper
     {
+        // Grava num temporário e só depois copia por cima do destino: se targetPdf == sourcePdf,
+        // abrir o PdfWriter direto no destino truncaria a origem antes do PdfReader lê-la.
+        private static void WriteSafely(string targetPdf, Action<PdfWriter> body)
+        {
+            string tmp = targetPdf + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                using (PdfWriter writer = new PdfWriter(tmp))
+                {
+                    body(writer);
+                }
+                File.Copy(tmp, targetPdf, true);
+            }
+            finally
+            {
+                if (File.Exists(tmp)) File.Delete(tmp);
+            }
+        }
+
         public static void StampText(string sourcePdf, string targetPdf, string text, int pageNumber, float x, float y, string fontName, float fontSize, Color color)
         {
+            WriteSafely(targetPdf, writer =>
+            {
             using (PdfReader reader = new PdfReader(sourcePdf))
-            using (PdfWriter writer = new PdfWriter(targetPdf))
             using (PdfDocument pdfDoc = new PdfDocument(reader, writer))
             {
                 Document document = new Document(pdfDoc);
@@ -40,12 +60,14 @@ namespace PdfToolbox
                 }
                 document.Close();
             }
+            });
         }
 
         public static void StampImage(string sourcePdf, string targetPdf, string imagePath, int pageNumber, float x, float y, float targetWidth, float targetHeight)
         {
+            WriteSafely(targetPdf, writer =>
+            {
             using (iText.Kernel.Pdf.PdfReader reader = new iText.Kernel.Pdf.PdfReader(sourcePdf))
-            using (iText.Kernel.Pdf.PdfWriter writer = new iText.Kernel.Pdf.PdfWriter(targetPdf))
             using (iText.Kernel.Pdf.PdfDocument document = new iText.Kernel.Pdf.PdfDocument(reader, writer))
             {
                 iText.Layout.Element.Image img = new iText.Layout.Element.Image(iText.IO.Image.ImageDataFactory.Create(imagePath));
@@ -68,6 +90,7 @@ namespace PdfToolbox
                     layoutDoc.Add(img);
                 }
             }
+            });
         }
         public static void StampMultipleAnnotations(string sourcePdf, string targetPdf, Dictionary<int, List<AnnotationElement>> pageAnnotations)
         {
@@ -80,8 +103,9 @@ namespace PdfToolbox
             // Registra as fontes do sistema para permitir o uso de qualquer fonte instalada no PC
             PdfFontFactory.RegisterSystemDirectories();
 
+            WriteSafely(targetPdf, writer =>
+            {
             using (PdfReader reader = new PdfReader(sourcePdf))
-            using (PdfWriter writer = new PdfWriter(targetPdf))
             using (PdfDocument pdfDoc = new PdfDocument(reader, writer))
             {
                 Document document = new Document(pdfDoc);
@@ -204,9 +228,10 @@ namespace PdfToolbox
                         }
                     }
                 }
-                
+
                 document.Close();
             }
+            });
         }
     }
 }

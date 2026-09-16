@@ -82,8 +82,6 @@ namespace PdfToolbox
             catch { }
 
             Application.Current.Shutdown();
-            System.Diagnostics.Process.GetCurrentProcess().Kill(true);
-            Environment.Exit(0);
         }
 
         private async void InicializarAmbienteWebViewAsync()
@@ -680,13 +678,14 @@ namespace PdfToolbox
                         .SetCompressionLevel(iText.Kernel.Pdf.CompressionConstants.BEST_COMPRESSION)
                         .SetFullCompressionMode(true);
 
+                    int imgIgnoradas = 0;
                     using (iText.Kernel.Pdf.PdfReader reader = new iText.Kernel.Pdf.PdfReader(_caminhoPdfAtual))
                     using (iText.Kernel.Pdf.PdfWriter writer = new iText.Kernel.Pdf.PdfWriter(dest, wp))
                     using (iText.Kernel.Pdf.PdfDocument pdfDoc = new iText.Kernel.Pdf.PdfDocument(reader, writer))
                     {
                         if (selectedLevel > 1)
                         {
-                            CompressImagesInPdf(pdfDoc, selectedLevel);
+                            imgIgnoradas = CompressImagesInPdf(pdfDoc, selectedLevel);
                         }
                         pdfDoc.Close();
                     }
@@ -697,13 +696,17 @@ namespace PdfToolbox
                     double economia = (tamanhoOriginal - tamanhoNovo) / 1024.0 / 1024.0;
                     double porcentagem = ((double)(tamanhoOriginal - tamanhoNovo) / (double)tamanhoOriginal) * 100.0;
 
+                    string aviso = imgIgnoradas > 0
+                        ? $"\n\nAtenção: {imgIgnoradas} imagem(ns) não puderam ser recomprimidas (transparência ou formato não suportado) e foram mantidas como estavam."
+                        : "";
+
                     if (economia > 0)
                     {
-                        MessageBox.Show($"Documento comprimido com sucesso!\n\nSalvo em: {dest}\n\nRedução de tamanho: {economia:F2} MB ({porcentagem:F1}%)", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show($"Documento comprimido com sucesso!\n\nSalvo em: {dest}\n\nRedução de tamanho: {economia:F2} MB ({porcentagem:F1}%){aviso}", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                     else
                     {
-                        MessageBox.Show($"O PDF já estava otimizado. Nenhuma compressão adicional foi possível.\n\nArquivo salvo em: {dest}", "Compressão Finalizada", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show($"O PDF já estava otimizado. Nenhuma compressão adicional foi possível.\n\nArquivo salvo em: {dest}{aviso}", "Compressão Finalizada", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
 
                     // Carrega o novo arquivo comprimido
@@ -862,8 +865,10 @@ namespace PdfToolbox
             return newPath;
         }
 
-        private void CompressImagesInPdf(iText.Kernel.Pdf.PdfDocument pdfDoc, int level)
+        // Retorna quantas imagens foram ignoradas (não recomprimidas).
+        private int CompressImagesInPdf(iText.Kernel.Pdf.PdfDocument pdfDoc, int level)
         {
+            int ignoradas = 0;
             for (int i = 1; i <= pdfDoc.GetNumberOfPdfObjects(); i++)
             {
                 iText.Kernel.Pdf.PdfObject obj = pdfDoc.GetPdfObject(i);
@@ -872,6 +877,15 @@ namespace PdfToolbox
                     iText.Kernel.Pdf.PdfStream stream = (iText.Kernel.Pdf.PdfStream)obj;
                     if (iText.Kernel.Pdf.PdfName.Image.Equals(stream.GetAsName(iText.Kernel.Pdf.PdfName.Subtype)))
                     {
+                        // Recodificar como JPEG RGB descartaria máscara de transparência ou stencil; mantém intacta.
+                        if (stream.ContainsKey(iText.Kernel.Pdf.PdfName.SMask)
+                            || stream.ContainsKey(iText.Kernel.Pdf.PdfName.Mask)
+                            || stream.GetAsBool(iText.Kernel.Pdf.PdfName.ImageMask) == true)
+                        {
+                            ignoradas++;
+                            continue;
+                        }
+
                         try
                         {
                             iText.Kernel.Pdf.Xobject.PdfImageXObject image = new iText.Kernel.Pdf.Xobject.PdfImageXObject(stream);
@@ -910,17 +924,18 @@ namespace PdfToolbox
                                     stream.Put(iText.Kernel.Pdf.PdfName.Height, new iText.Kernel.Pdf.PdfNumber(newHeight));
                                     stream.Put(iText.Kernel.Pdf.PdfName.ColorSpace, iText.Kernel.Pdf.PdfName.DeviceRGB);
                                     stream.Put(iText.Kernel.Pdf.PdfName.BitsPerComponent, new iText.Kernel.Pdf.PdfNumber(8));
-                                    stream.Remove(iText.Kernel.Pdf.PdfName.SMask);
                                 }
                             }
                         }
                         catch
                         {
-                            // Ignora imagens que não podem ser lidas ou convertidas (ex: CMYK, Indexed)
+                            // Imagem em formato que o GDI+ não decodifica (ex: CMYK, JBIG2, CCITT): fica como está.
+                            ignoradas++;
                         }
                     }
                 }
             }
+            return ignoradas;
         }
 
         private System.Drawing.Imaging.ImageCodecInfo GetEncoderInfo(String mimeType)
