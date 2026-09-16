@@ -28,10 +28,18 @@ namespace PdfToolbox
         
         private double _currentZoom = 1.0;
         private bool _isFirstLoad = true;
+        private string _tempPdfFile;
 
         public SignaturePlacementWindow(string pdfPath)
         {
             InitializeComponent();
+            this.Closed += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(_tempPdfFile) && File.Exists(_tempPdfFile))
+                {
+                    try { File.Delete(_tempPdfFile); } catch { }
+                }
+            };
             LoadPdfAsync(pdfPath);
         }
 
@@ -45,6 +53,7 @@ namespace PdfToolbox
                 // Copy to temp to avoid locks (same logic as VisualAnnotationWindow)
                 string tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
                 File.Copy(fullPath, tempFile, true);
+                _tempPdfFile = tempFile;
 
                 var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(tempFile);
                 _pdfDoc = await PdfDocument.LoadFromFileAsync(file);

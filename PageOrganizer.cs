@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Windows.Media;
 using iText.Kernel.Pdf;
 
@@ -17,29 +18,45 @@ namespace PdfToolbox
     {
         public static void OrganizeAndSave(List<PageItem> pages, string outputPath)
         {
-            using (PdfWriter writer = new PdfWriter(outputPath))
-            using (PdfDocument destDoc = new PdfDocument(writer))
+            // Grava num arquivo temporário primeiro: se outputPath coincidir com um dos
+            // PDFs de origem (ex.: usuário reorganiza e salva por cima do próprio arquivo),
+            // abrir o PdfWriter direto no outputPath truncaria a origem antes de lê-la.
+            string tempPath = outputPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
             {
-                Dictionary<string, PdfDocument> openedDocs = new Dictionary<string, PdfDocument>();
-                try
+                using (PdfWriter writer = new PdfWriter(tempPath))
+                using (PdfDocument destDoc = new PdfDocument(writer))
                 {
-                    foreach (var page in pages)
+                    Dictionary<string, PdfDocument> openedDocs = new Dictionary<string, PdfDocument>();
+                    try
                     {
-                        if (!openedDocs.ContainsKey(page.SourcePdfPath))
+                        foreach (var page in pages)
                         {
-                            openedDocs[page.SourcePdfPath] = new PdfDocument(new PdfReader(page.SourcePdfPath));
+                            if (!openedDocs.ContainsKey(page.SourcePdfPath))
+                            {
+                                openedDocs[page.SourcePdfPath] = new PdfDocument(new PdfReader(page.SourcePdfPath));
+                            }
+
+                            PdfDocument srcDoc = openedDocs[page.SourcePdfPath];
+                            srcDoc.CopyPagesTo(page.OriginalPageNumber, page.OriginalPageNumber, destDoc);
                         }
-                        
-                        PdfDocument srcDoc = openedDocs[page.SourcePdfPath];
-                        srcDoc.CopyPagesTo(page.OriginalPageNumber, page.OriginalPageNumber, destDoc);
+                    }
+                    finally
+                    {
+                        foreach (var doc in openedDocs.Values)
+                        {
+                            doc.Close();
+                        }
                     }
                 }
-                finally
+
+                File.Copy(tempPath, outputPath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
                 {
-                    foreach (var doc in openedDocs.Values)
-                    {
-                        doc.Close();
-                    }
+                    File.Delete(tempPath);
                 }
             }
         }

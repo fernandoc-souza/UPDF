@@ -33,6 +33,7 @@ namespace PdfToolbox
         public float ImageScale { get; set; }
 
         public string SavedFilePath { get; private set; }
+        private string _tempPdfFile;
 
         public VisualAnnotationWindow(string pdfPath)
         {
@@ -52,6 +53,7 @@ namespace PdfToolbox
                 // Copy to temp to avoid locks
                 string tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
                 File.Copy(fullPath, tempFile, true);
+                _tempPdfFile = tempFile;
 
                 StorageFile file = await StorageFile.GetFileFromPathAsync(tempFile);
                 _pdfDoc = await Windows.Data.Pdf.PdfDocument.LoadFromFileAsync(file);
@@ -74,6 +76,10 @@ namespace PdfToolbox
         private void VisualAnnotationWindow_Closed(object sender, EventArgs e)
         {
             _pdfDoc = null;
+            if (!string.IsNullOrEmpty(_tempPdfFile) && File.Exists(_tempPdfFile))
+            {
+                try { File.Delete(_tempPdfFile); } catch { }
+            }
         }
 
         private async Task RenderPage(int pageNumber)

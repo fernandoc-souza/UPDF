@@ -47,6 +47,7 @@ namespace PdfToolbox
         public string SavedFilePath { get; private set; }
 
         private bool _isUpdatingToolbar = false;
+        private string _tempPdfFile;
 
         public FreeEditorWindow(string pdfPath)
         {
@@ -78,6 +79,7 @@ namespace PdfToolbox
                 var fullPath = System.IO.Path.GetFullPath(_pdfPath);
                 string tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
                 File.Copy(fullPath, tempFile, true);
+                _tempPdfFile = tempFile;
 
                 StorageFile file = await StorageFile.GetFileFromPathAsync(tempFile);
                 _pdfDoc = await Windows.Data.Pdf.PdfDocument.LoadFromFileAsync(file);
@@ -99,6 +101,10 @@ namespace PdfToolbox
         private void FreeEditorWindow_Closed(object sender, EventArgs e)
         {
             _pdfDoc = null;
+            if (!string.IsNullOrEmpty(_tempPdfFile) && File.Exists(_tempPdfFile))
+            {
+                try { File.Delete(_tempPdfFile); } catch { }
+            }
         }
 
         private async Task RenderPage(int pageNumber)

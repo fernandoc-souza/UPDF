@@ -5,9 +5,8 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 using Microsoft.Web.WebView2.Wpf;
 using AutoUpdaterDotNET;
-using System.Net.Http;
-using System.Text.Json;
 using System.Diagnostics;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace PdfToolbox
@@ -15,7 +14,15 @@ namespace PdfToolbox
     public partial class MainWindow : Window
     {
         private Microsoft.Web.WebView2.Core.CoreWebView2Environment _env;
-        private const string CurrentVersion = "v1.2.0";
+
+        private static string CurrentVersion
+        {
+            get
+            {
+                var v = Assembly.GetExecutingAssembly().GetName().Version;
+                return $"{v.Major}.{v.Minor}.{v.Build}";
+            }
+        }
 
         private string _caminhoPdfAtual
         {
@@ -55,53 +62,9 @@ namespace PdfToolbox
             AutoUpdater.Start("https://raw.githubusercontent.com/fernandoc-souza/UPDF/main/update.xml");
         }
 
-        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             InicializarAmbienteWebViewAsync();
-            _ = CheckForUpdatesAsync();
-        }
-
-        private async Task CheckForUpdatesAsync()
-        {
-            try
-            {
-                using (HttpClient client = new HttpClient())
-                {
-                    client.DefaultRequestHeaders.Add("User-Agent", "UPDF-Updater");
-                    string url = "https://api.github.com/repos/fernandoc-souza/UPDF/releases/latest";
-                    
-                    HttpResponseMessage response = await client.GetAsync(url);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        string json = await response.Content.ReadAsStringAsync();
-                        using (JsonDocument doc = JsonDocument.Parse(json))
-                        {
-                            if (doc.RootElement.TryGetProperty("tag_name", out JsonElement tagElement))
-                            {
-                                string latestVersion = tagElement.GetString();
-                                if (!string.IsNullOrEmpty(latestVersion) && latestVersion != CurrentVersion)
-                                {
-                                    await Dispatcher.InvokeAsync(() =>
-                                    {
-                                        MessageBoxResult result = MessageBox.Show(
-                                            $"Uma nova versão do UPDF ({latestVersion}) está disponível no GitHub!\nSua versão atual é {CurrentVersion}.\n\nDeseja abrir a página para baixar a atualização agora?",
-                                            "Nova Atualização Disponível!",
-                                            MessageBoxButton.YesNo,
-                                            MessageBoxImage.Information);
-
-                                        if (result == MessageBoxResult.Yes)
-                                        {
-                                            string releaseUrl = "https://github.com/fernandoc-souza/UPDF/releases/latest";
-                                            Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch { }
         }
 
         private void MainWindow_Closed(object sender, EventArgs e)
@@ -428,7 +391,7 @@ namespace PdfToolbox
         private void BtnAbout_Click(object sender, RoutedEventArgs e)
         {
             string aboutText = "União PDF FCS (UPDF)\n" +
-                               "Versão 1.2.0\n\n" +
+                               $"Versão {CurrentVersion}\n\n" +
                                "Um sistema avançado para visualização, assinatura, compressão e organização de documentos PDF.\n\n" +
                                "Criador: Fernando CS\n\n" +
                                "Se o UPDF foi útil pra você faça uma doação pelo pix: 27999021489.";
@@ -588,6 +551,13 @@ namespace PdfToolbox
             string nomeSignatario = cert.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false);
             string dataAssinatura = DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss zzz");
 
+            bool origemJaAssinada;
+            using (iText.Kernel.Pdf.PdfReader checkReader = new iText.Kernel.Pdf.PdfReader(origem))
+            using (iText.Kernel.Pdf.PdfDocument checkDoc = new iText.Kernel.Pdf.PdfDocument(checkReader))
+            {
+                origemJaAssinada = new iText.Signatures.SignatureUtil(checkDoc).GetSignatureNames().Count > 0;
+            }
+
             string atual = origem;   // fonte da vez
             string anterior = null;  // temp intermediário a apagar
 
@@ -597,7 +567,9 @@ namespace PdfToolbox
                 string saida = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
 
                 var props = new iText.Kernel.Pdf.StampingProperties();
-                if (idx > 0) props.UseAppendMode(); // preserva assinaturas já aplicadas
+                // Preserva assinaturas já aplicadas: tanto as adicionadas nas páginas anteriores
+                // deste loop (idx > 0) quanto uma assinatura pré-existente no arquivo de origem.
+                if (idx > 0 || origemJaAssinada) props.UseAppendMode();
 
                 using (iText.Kernel.Pdf.PdfReader reader = new iText.Kernel.Pdf.PdfReader(atual))
                 using (System.IO.FileStream fs = new System.IO.FileStream(saida, System.IO.FileMode.Create))
