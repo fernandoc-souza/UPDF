@@ -10,15 +10,19 @@ namespace PdfToolbox
     // editado à mão pelo usuário (o app relê a cada assinatura).
     public class UpdfConfig
     {
-        // Carimbo de tempo RFC 3161. O padrão é uma TSA pública gratuita, que NÃO é
-        // credenciada ICP-Brasil: o carimbo é tecnicamente válido e prova a data, mas
-        // para uma assinatura ICP-Brasil AD-RT troque por uma TSA credenciada
-        // (ex.: a fornecida pela sua AC) preenchendo TsaUrl/TsaUsuario/TsaSenha.
+        // Carimbo de tempo RFC 3161. DESLIGADO por padrão: assinar não faz nenhuma
+        // chamada de rede e o resultado é o mesmo CMS de sempre.
+        //
+        // Para ligar, ponha "tsaHabilitado": true e preencha TsaUrl com a TSA da sua
+        // Autoridade Certificadora (e usuário/senha, se ela exigir). Só uma TSA
+        // credenciada ICP-Brasil produz assinatura AD-RT com validade legal aqui.
+        // TSAs públicas gratuitas (ex.: http://timestamp.digicert.com) também funcionam
+        // e provam a data, mas NÃO são credenciadas ICP-Brasil.
         [JsonPropertyName("tsaHabilitado")]
-        public bool TsaHabilitado { get; set; } = true;
+        public bool TsaHabilitado { get; set; } = false;
 
         [JsonPropertyName("tsaUrl")]
-        public string TsaUrl { get; set; } = "http://timestamp.digicert.com";
+        public string TsaUrl { get; set; } = "";
 
         [JsonPropertyName("tsaUsuario")]
         public string TsaUsuario { get; set; } = "";

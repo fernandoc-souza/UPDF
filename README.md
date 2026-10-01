@@ -27,16 +27,17 @@ O **UPDF FCS** é um aplicativo desktop rápido, leve e profissional desenvolvid
 
 ## 🕒 Carimbo de tempo e LTV (assinatura digital)
 
-A partir da versão 1.3.3 o UPDF aplica **carimbo de tempo RFC 3161** e embute os dados de
-revogação (**OCSP/CRL**) na assinatura, gerando uma assinatura **CAdES** com validade de longo prazo.
-Se a TSA não responder, o app assina sem carimbo em vez de falhar, e avisa na tela.
+A partir da versão 1.3.3 o UPDF sabe aplicar **carimbo de tempo RFC 3161** na assinatura,
+gerando um documento **CAdES** com validade de longo prazo. O recurso vem **desligado por
+padrão**: sem configurar nada, assinar não faz nenhuma chamada de rede e o resultado é o
+mesmo de sempre.
 
 As opções ficam em `%LOCALAPPDATA%\UPDF\config.json`, criado na primeira execução:
 
 ```json
 {
-  "tsaHabilitado": true,
-  "tsaUrl": "http://timestamp.digicert.com",
+  "tsaHabilitado": false,
+  "tsaUrl": "",
   "tsaUsuario": "",
   "tsaSenha": "",
   "ltvHabilitado": true,
@@ -44,10 +45,22 @@ As opções ficam em `%LOCALAPPDATA%\UPDF\config.json`, criado na primeira execu
 }
 ```
 
-> A TSA padrão é pública e gratuita, mas **não é credenciada ICP-Brasil**. O carimbo é
-> tecnicamente válido e prova a data, porém para uma assinatura **ICP-Brasil AD-RT** troque
-> `tsaUrl` (e usuário/senha, se houver) pela TSA credenciada da sua Autoridade Certificadora.
-> Para desligar o carimbo e voltar ao comportamento antigo, use `"tsaHabilitado": false`.
+Para ligar o carimbo, ponha `"tsaHabilitado": true` e preencha `tsaUrl`:
+
+> Só uma TSA **credenciada ICP-Brasil** produz assinatura **AD-RT** com validade legal no
+> Brasil — normalmente a sua Autoridade Certificadora fornece o endereço (e, se for o caso,
+> usuário e senha). TSAs públicas gratuitas como `http://timestamp.digicert.com` também
+> funcionam e provam a data, mas **não são credenciadas ICP-Brasil**.
+
+Se a TSA estiver ligada e não responder, o app assina sem carimbo em vez de falhar, e avisa na tela.
+
+O `ltvHabilitado` embute os dados de revogação (**OCSP/CRL**) do seu certificado e fica ligado.
+Quando esses endereços estão fora do ar ou a máquina está offline, a assinatura sai normalmente
+sem eles.
+
+> Já tem um `config.json` de uma instalação anterior? O arquivo existente é respeitado — o novo
+> padrão só vale para quem ainda não tem um. Para desligar o carimbo num config já criado,
+> edite o arquivo e troque `"tsaHabilitado"` para `false`.
 
 ## ✍️ Múltiplas assinaturas no mesmo documento
 
