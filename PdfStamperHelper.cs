@@ -80,22 +80,26 @@ namespace PdfToolbox
                 int startPage = pageNumber == 0 ? 1 : pageNumber;
                 int endPage = pageNumber == 0 ? totalPages : pageNumber;
 
-                for (int i = startPage; i <= endPage; i++)
+                // Um único Document reaproveitado e fechado no fim: criar um por página
+                // deixava renderers abertos sem flush.
+                using (iText.Layout.Document layoutDoc = new iText.Layout.Document(document))
                 {
-                    if (i > totalPages) break;
-                    
-                    // x, y devem ser as coordenadas do canto inferior esquerdo no PDF.
-                    img.SetFixedPosition(i, x, y);
-                    iText.Layout.Document layoutDoc = new iText.Layout.Document(document);
-                    layoutDoc.Add(img);
+                    for (int i = startPage; i <= endPage; i++)
+                    {
+                        if (i > totalPages) break;
+
+                        // x, y devem ser as coordenadas do canto inferior esquerdo no PDF.
+                        img.SetFixedPosition(i, x, y);
+                        layoutDoc.Add(img);
+                    }
                 }
             }
             });
         }
         public static void StampMultipleAnnotations(string sourcePdf, string targetPdf, Dictionary<int, List<AnnotationElement>> pageAnnotations)
         {
-            string dirPath = System.IO.Path.GetDirectoryName(targetPdf);
-            if (!System.IO.Directory.Exists(dirPath))
+            string dirPath = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(targetPdf));
+            if (!string.IsNullOrEmpty(dirPath) && !System.IO.Directory.Exists(dirPath))
             {
                 System.IO.Directory.CreateDirectory(dirPath);
             }

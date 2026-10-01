@@ -25,6 +25,37 @@ O **UPDF FCS** é um aplicativo desktop rápido, leve e profissional desenvolvid
 4. Execute o arquivo `Instalador.bat` (ele pedirá permissão de Administrador para criar os atalhos e associar o sistema).
 5. Pronto! O atalho **UPDF** estará na sua Área de Trabalho e Menu Iniciar.
 
+## 🕒 Carimbo de tempo e LTV (assinatura digital)
+
+A partir da versão 1.3.3 o UPDF aplica **carimbo de tempo RFC 3161** e embute os dados de
+revogação (**OCSP/CRL**) na assinatura, gerando uma assinatura **CAdES** com validade de longo prazo.
+Se a TSA não responder, o app assina sem carimbo em vez de falhar, e avisa na tela.
+
+As opções ficam em `%LOCALAPPDATA%\UPDF\config.json`, criado na primeira execução:
+
+```json
+{
+  "tsaHabilitado": true,
+  "tsaUrl": "http://timestamp.digicert.com",
+  "tsaUsuario": "",
+  "tsaSenha": "",
+  "ltvHabilitado": true,
+  "tsaTimeoutSegundos": 15
+}
+```
+
+> A TSA padrão é pública e gratuita, mas **não é credenciada ICP-Brasil**. O carimbo é
+> tecnicamente válido e prova a data, porém para uma assinatura **ICP-Brasil AD-RT** troque
+> `tsaUrl` (e usuário/senha, se houver) pela TSA credenciada da sua Autoridade Certificadora.
+> Para desligar o carimbo e voltar ao comportamento antigo, use `"tsaHabilitado": false`.
+
+## ✍️ Múltiplas assinaturas no mesmo documento
+
+É possível assinar o mesmo PDF várias vezes — PF e PJ, dois engenheiros, etc. — inclusive na
+mesma página. Cada assinatura entra como uma revisão incremental, então as anteriores continuam
+válidas. Já as operações que reescrevem o arquivo (comprimir, anotar, reorganizar páginas)
+invalidam as assinaturas existentes, e o app pede confirmação antes de seguir.
+
 ## 💻 Tecnologias Utilizadas
 
 - **C# / .NET 8 (WPF):** Interface moderna e alta performance.

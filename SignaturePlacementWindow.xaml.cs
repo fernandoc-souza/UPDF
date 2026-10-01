@@ -14,6 +14,9 @@ namespace PdfToolbox
     {
         private Point _startPoint;
         private bool _isDrawing = false;
+        // Página em que o retângulo foi efetivamente desenhado. 0 = nenhum retângulo válido.
+        // Guardado explicitamente para não confiar em _currentPage, que muda ao navegar.
+        private int _paginaDoRetangulo = 0;
         
         public Rect SelectedRect { get; private set; }
         public int PageNumber { get; private set; } = 1;
@@ -77,7 +80,12 @@ namespace PdfToolbox
         private async Task RenderPage(int pageNumber)
         {
             TxtPageInfo.Text = $"Página {pageNumber} / {_pageCount}";
+            // Trocar de página descarta a seleção: ela pertencia à página anterior.
             SelectionRect.Visibility = Visibility.Collapsed;
+            SelectionRect.Width = 0;
+            SelectionRect.Height = 0;
+            SelectedRect = new Rect();
+            _paginaDoRetangulo = 0;
             
             try
             {
@@ -280,6 +288,7 @@ namespace PdfToolbox
                 PdfCanvas.ReleaseMouseCapture();
                 
                 SelectedRect = new Rect(Canvas.GetLeft(SelectionRect), Canvas.GetTop(SelectionRect), SelectionRect.Width, SelectionRect.Height);
+                _paginaDoRetangulo = (SelectionRect.Width > 0 && SelectionRect.Height > 0) ? _currentPage : 0;
             }
         }
 
@@ -291,9 +300,16 @@ namespace PdfToolbox
 
         private void BtnConfirm_Click(object sender, RoutedEventArgs e)
         {
-            if (SelectionRect.Width == 0 || SelectionRect.Height == 0 || SelectionRect.Visibility == Visibility.Collapsed)
+            if (_paginaDoRetangulo == 0 || SelectedRect.Width <= 0 || SelectedRect.Height <= 0)
             {
                 MessageBox.Show("Por favor, desenhe o retângulo da assinatura antes de confirmar.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_paginaDoRetangulo != _currentPage)
+            {
+                // Defesa extra: RenderPage já limpa a seleção ao trocar de página.
+                MessageBox.Show($"O retângulo foi desenhado na página {_paginaDoRetangulo}, mas você está vendo a página {_currentPage}.\n\nDesenhe novamente na página desejada.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             
@@ -318,7 +334,7 @@ namespace PdfToolbox
             CanvasWidth = PdfCanvas.Width;
             CanvasHeight = PdfCanvas.Height;
 
-            this.PageNumber = _currentPage;
+            this.PageNumber = _paginaDoRetangulo;
             this.DialogResult = true;
             this.Close();
         }

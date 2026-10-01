@@ -33,7 +33,8 @@ namespace PdfToolbox
                         {
                             Paragraph p = new Paragraph();
                             Run r = new Run();
-                            Text t = new Text(para);
+                            // Space=Preserve mantém recuos e espaços à esquerda/direita da linha do PDF.
+                            Text t = new Text(para) { Space = SpaceProcessingModeValues.Preserve };
                             r.Append(t);
                             p.Append(r);
                             body.Append(p);

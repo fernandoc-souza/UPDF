@@ -21,3 +21,5 @@ Staging_UPDF/
 *.exe
 *.zip
 *.pdb
+publish_v*/
+dist/

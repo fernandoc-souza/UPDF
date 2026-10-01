@@ -452,14 +452,9 @@ namespace PdfToolbox
                 System.Security.Cryptography.X509Certificates.X509Certificate2 cert = sel[0];
 
                 // 3. Perguntar: gerar novo arquivo ou substituir o atual?
-                var escolha = MessageBox.Show(
-                    "Como deseja salvar a assinatura?\n\n" +
-                    "Sim = SUBSTITUIR o arquivo atual\n" +
-                    "Não = gerar um NOVO arquivo",
-                    "Salvar PDF assinado", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-
-                if (escolha == MessageBoxResult.Cancel) return;
-                bool substituir = (escolha == MessageBoxResult.Yes);
+                SaveModeWindow modoWin = new SaveModeWindow { Owner = this };
+                if (modoWin.ShowDialog() != true || modoWin.Modo == ModoSalvar.Cancelar) return;
+                bool substituir = (modoWin.Modo == ModoSalvar.Substituir);
 
                 string dest;
                 if (substituir)
@@ -499,8 +494,9 @@ namespace PdfToolbox
                 }
 
                 // 6. Assinar (sequencialmente, uma assinatura real por página) num arquivo temporário
-                string assinadoTemp = await Task.Run(() => AssinarPaginas(
+                ResultadoAssinatura resultado = await Task.Run(() => AssinarPaginas(
                     origem, paginas, sigRect, placementWin.CanvasWidth, placementWin.CanvasHeight, cert, chain));
+                string assinadoTemp = resultado.Caminho;
 
                 // 7. Gravar no destino final
                 if (substituir)
@@ -526,7 +522,10 @@ namespace PdfToolbox
 
                 TxtStatus.Text = $"Arquivo aberto: {dest}";
                 string msgPaginas = todasPaginas ? $"em todas as {paginas.Count} páginas" : $"na página {sigPage}";
-                MessageBox.Show($"Documento assinado com sucesso ({msgPaginas})!\n\nSalvo em: {dest}", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
+                string msgCarimbo = resultado.ComCarimbo
+                    ? "\n\nCarimbo de tempo aplicado."
+                    : (string.IsNullOrEmpty(resultado.AvisoCarimbo) ? "" : $"\n\n{resultado.AvisoCarimbo}");
+                MessageBox.Show($"Documento assinado com sucesso ({msgPaginas})!\n\nSalvo em: {dest}{msgCarimbo}", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -534,10 +533,18 @@ namespace PdfToolbox
             }
         }
 
+        // Resultado de AssinarPaginas: caminho do temporário + se o carimbo de tempo entrou.
+        private class ResultadoAssinatura
+        {
+            public string Caminho = string.Empty;
+            public bool ComCarimbo;
+            public string AvisoCarimbo = string.Empty;
+        }
+
         // Assina cada página da lista na mesma posição proporcional. Cada página recebe uma assinatura
         // digital real; a partir da 2ª usa modo append para preservar as assinaturas anteriores.
         // Retorna o caminho de um arquivo temporário com o resultado final.
-        private string AssinarPaginas(
+        private ResultadoAssinatura AssinarPaginas(
             string origem,
             System.Collections.Generic.List<int> paginas,
             Rect sigRect,
@@ -549,20 +556,72 @@ namespace PdfToolbox
             string nomeSignatario = cert.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false);
             string dataAssinatura = DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss zzz");
 
+            var resultado = new ResultadoAssinatura();
+            UpdfConfig config = UpdfConfig.Carregar();
+
+            // Carimbo de tempo (RFC 3161) e dados de revogação (LTV). Ambos dependem de rede:
+            // se a TSA não responder, a assinatura sai sem carimbo em vez de falhar.
+            iText.Signatures.ITSAClient? tsaClient = null;
+            if (config.TsaHabilitado && !string.IsNullOrWhiteSpace(config.TsaUrl))
+            {
+                try
+                {
+                    tsaClient = string.IsNullOrEmpty(config.TsaUsuario)
+                        ? new iText.Signatures.TSAClientBouncyCastle(config.TsaUrl)
+                        : new iText.Signatures.TSAClientBouncyCastle(config.TsaUrl, config.TsaUsuario, config.TsaSenha);
+                }
+                catch (Exception ex)
+                {
+                    tsaClient = null;
+                    resultado.AvisoCarimbo = "Assinatura gravada SEM carimbo de tempo (TSA inválida: " + ex.Message + ").";
+                }
+            }
+
+            iText.Signatures.IOcspClient? ocspClient = null;
+            System.Collections.Generic.ICollection<iText.Signatures.ICrlClient>? crlClients = null;
+            if (config.LtvHabilitado)
+            {
+                try
+                {
+                    ocspClient = new iText.Signatures.OcspClientBouncyCastle(null);
+                    crlClients = new System.Collections.Generic.List<iText.Signatures.ICrlClient>
+                    {
+                        new iText.Signatures.CrlClientOnline(chain)
+                    };
+                }
+                catch
+                {
+                    // Sem OCSP/CRL a assinatura continua válida, só não fica LTV.
+                    ocspClient = null;
+                    crlClients = null;
+                }
+            }
+
             bool origemJaAssinada;
+            // Nomes de campo já existentes no arquivo (assinaturas anteriores de outras sessões).
+            // Precisa ser único por assinatura, senão o iText lança "Field has been already signed."
+            var nomesCamposUsados = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
             using (iText.Kernel.Pdf.PdfReader checkReader = new iText.Kernel.Pdf.PdfReader(origem))
             using (iText.Kernel.Pdf.PdfDocument checkDoc = new iText.Kernel.Pdf.PdfDocument(checkReader))
             {
                 origemJaAssinada = new iText.Signatures.SignatureUtil(checkDoc).GetSignatureNames().Count > 0;
+
+                var acro = iText.Forms.PdfAcroForm.GetAcroForm(checkDoc, false);
+                if (acro != null)
+                {
+                    foreach (string nomeCampo in acro.GetAllFormFields().Keys) nomesCamposUsados.Add(nomeCampo);
+                }
             }
 
             string atual = origem;   // fonte da vez
             string anterior = null;  // temp intermediário a apagar
+            bool precisaRefazerSemCarimbo = false;
 
             for (int idx = 0; idx < paginas.Count; idx++)
             {
                 int pagina = paginas[idx];
                 string saida = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
+                string nomeCampoDaVez = string.Empty;
 
                 var props = new iText.Kernel.Pdf.StampingProperties();
                 // Preserva assinaturas já aplicadas: tanto as adicionadas nas páginas anteriores
@@ -603,15 +662,65 @@ namespace PdfToolbox
 
                     signer.SetPageRect(new iText.Kernel.Geom.Rectangle(rectX, rectY, rectW, rectH));
                     signer.SetPageNumber(pagina);
-                    signer.SetFieldName($"Assinatura_p{pagina}"); // nome único por página
+                    // Nome único por página E por assinatura: permite várias assinaturas
+                    // (PF + PJ, dois engenheiros, etc.) no mesmo documento e na mesma página.
+                    string nomeCampoAssinatura = $"Assinatura_p{pagina}";
+                    int sufixo = 2;
+                    while (nomesCamposUsados.Contains(nomeCampoAssinatura))
+                    {
+                        nomeCampoAssinatura = $"Assinatura_p{pagina}_{sufixo}";
+                        sufixo++;
+                    }
+                    nomesCamposUsados.Add(nomeCampoAssinatura);
+                    nomeCampoDaVez = nomeCampoAssinatura;
+                    signer.SetFieldName(nomeCampoAssinatura);
 
-                    iText.Signatures.PdfSignatureAppearance appearance = signer.GetSignatureAppearance();
-                    appearance.SetReason("Assinatura Digital");
-                    appearance.SetRenderingMode(iText.Signatures.PdfSignatureAppearance.RenderingMode.NAME_AND_DESCRIPTION);
-                    appearance.SetLayer2Text($"Assinado de forma digital por {nomeSignatario}\nDados: {dataAssinatura}");
+                    // API atual do iText 8 (PdfSignatureAppearance está obsoleto e sai no iText 9).
+                    signer.SetReason("Assinatura Digital");
+                    var appearance = new iText.Forms.Form.Element.SignatureFieldAppearance(nomeCampoAssinatura);
+                    appearance.SetContent(nomeSignatario,
+                        $"Assinado de forma digital por {nomeSignatario}\nDados: {dataAssinatura}");
+                    signer.SetSignatureAppearance(appearance);
 
                     iText.Signatures.IExternalSignature pks = new CustomX509Certificate2Signature(cert, "SHA-256");
-                    signer.SignDetached(pks, chain, null, null, null, 0, iText.Signatures.PdfSigner.CryptoStandard.CMS);
+
+                    // Com carimbo de tempo usa CAdES (padrão exigido para AD-RT); sem TSA
+                    // mantém CMS, que é o formato que o app já gerava.
+                    if (tsaClient != null)
+                    {
+                        try
+                        {
+                            signer.SignDetached(pks, chain, crlClients, ocspClient, tsaClient, 0,
+                                iText.Signatures.PdfSigner.CryptoStandard.CADES);
+                            resultado.ComCarimbo = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            // TSA fora do ar / sem internet: refaz a assinatura sem carimbo.
+                            // O PdfSigner já foi consumido, então o retry acontece fora deste bloco.
+                            tsaClient = null;
+                            resultado.ComCarimbo = false;
+                            resultado.AvisoCarimbo =
+                                "Assinatura gravada SEM carimbo de tempo.\nA TSA não respondeu: " + DetalharErro(ex);
+                            precisaRefazerSemCarimbo = true;
+                        }
+                    }
+
+                    if (!precisaRefazerSemCarimbo && tsaClient == null)
+                    {
+                        signer.SignDetached(pks, chain, crlClients, ocspClient, null, 0,
+                            iText.Signatures.PdfSigner.CryptoStandard.CMS);
+                    }
+                }
+
+                if (precisaRefazerSemCarimbo)
+                {
+                    // Descarta o arquivo meio-escrito e repete a MESMA página sem TSA.
+                    precisaRefazerSemCarimbo = false;
+                    try { System.IO.File.Delete(saida); } catch { }
+                    nomesCamposUsados.Remove(nomeCampoDaVez);
+                    idx--; // repete a iteração
+                    continue;
                 }
 
                 if (anterior != null)
@@ -622,7 +731,56 @@ namespace PdfToolbox
                 atual = saida;
             }
 
-            return atual;
+            resultado.Caminho = atual;
+            return resultado;
+        }
+
+        // O iText embrulha falhas de rede num PdfException genérico ("Unknown PdfException.");
+        // a causa útil fica na InnerException.
+        private static string DetalharErro(Exception ex)
+        {
+            Exception atual = ex;
+            while (atual.InnerException != null) atual = atual.InnerException;
+            string msg = atual.Message;
+            if (!ReferenceEquals(atual, ex) && !string.IsNullOrWhiteSpace(ex.Message))
+            {
+                msg = ex.Message.TrimEnd('.') + " - " + msg;
+            }
+            return msg;
+        }
+
+        // Compressão e anotações reescrevem o PDF inteiro, o que invalida qualquer assinatura
+        // existente. Avisa e pede confirmação; retorna false se o usuário desistir.
+        private bool ConfirmarPerdaDeAssinatura(string caminho, string operacao)
+        {
+            if (!PossuiAssinaturaDigital(caminho)) return true;
+
+            var confirma = MessageBox.Show(
+                "Este PDF contém assinatura digital.\n\n" +
+                $"{operacao} reescreve o arquivo inteiro e INVALIDA todas as assinaturas existentes. " +
+                "O arquivo gerado deixará de ser um documento assinado.\n\n" +
+                "Deseja continuar mesmo assim?",
+                "Atenção: assinaturas serão invalidadas",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+
+            return confirma == MessageBoxResult.Yes;
+        }
+
+        // True se o PDF já contém pelo menos uma assinatura digital aplicada.
+        private static bool PossuiAssinaturaDigital(string caminho)
+        {
+            try
+            {
+                using (iText.Kernel.Pdf.PdfReader reader = new iText.Kernel.Pdf.PdfReader(caminho))
+                using (iText.Kernel.Pdf.PdfDocument doc = new iText.Kernel.Pdf.PdfDocument(reader))
+                {
+                    return new iText.Signatures.SignatureUtil(doc).GetSignatureNames().Count > 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         // Converte um ponto (origem inferior-esquerda) do espaço visível/renderizado para o
@@ -648,6 +806,8 @@ namespace PdfToolbox
                     MessageBox.Show("Por favor, abra um documento PDF primeiro.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
+
+                if (!ConfirmarPerdaDeAssinatura(_caminhoPdfAtual, "A compressão")) return;
 
                 string dirOriginal = System.IO.Path.GetDirectoryName(_caminhoPdfAtual);
                 string nomeOriginal = System.IO.Path.GetFileNameWithoutExtension(_caminhoPdfAtual);
@@ -678,35 +838,57 @@ namespace PdfToolbox
                         .SetCompressionLevel(iText.Kernel.Pdf.CompressionConstants.BEST_COMPRESSION)
                         .SetFullCompressionMode(true);
 
+                    // Grava num temporário: recomprimir pode AUMENTAR o arquivo (imagens já
+                    // otimizadas re-encodadas em JPEG). Só entrega o resultado se ele for menor,
+                    // e escrever fora do destino evita truncar a origem quando dest == origem.
+                    string tempComprimido = System.IO.Path.Combine(
+                        System.IO.Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
+
                     int imgIgnoradas = 0;
-                    using (iText.Kernel.Pdf.PdfReader reader = new iText.Kernel.Pdf.PdfReader(_caminhoPdfAtual))
-                    using (iText.Kernel.Pdf.PdfWriter writer = new iText.Kernel.Pdf.PdfWriter(dest, wp))
-                    using (iText.Kernel.Pdf.PdfDocument pdfDoc = new iText.Kernel.Pdf.PdfDocument(reader, writer))
+                    try
                     {
-                        if (selectedLevel > 1)
+                        using (iText.Kernel.Pdf.PdfReader reader = new iText.Kernel.Pdf.PdfReader(_caminhoPdfAtual))
+                        using (iText.Kernel.Pdf.PdfWriter writer = new iText.Kernel.Pdf.PdfWriter(tempComprimido, wp))
+                        using (iText.Kernel.Pdf.PdfDocument pdfDoc = new iText.Kernel.Pdf.PdfDocument(reader, writer))
                         {
-                            imgIgnoradas = CompressImagesInPdf(pdfDoc, selectedLevel);
+                            if (selectedLevel > 1)
+                            {
+                                imgIgnoradas = CompressImagesInPdf(pdfDoc, selectedLevel);
+                            }
                         }
-                        pdfDoc.Close();
+
+                        long tamanhoComprimido = new System.IO.FileInfo(tempComprimido).Length;
+                        bool valeuAPena = tamanhoComprimido < tamanhoOriginal;
+
+                        string fonteFinal = valeuAPena ? tempComprimido : _caminhoPdfAtual;
+                        bool mesmoArquivo = string.Equals(
+                            System.IO.Path.GetFullPath(fonteFinal),
+                            System.IO.Path.GetFullPath(dest),
+                            StringComparison.OrdinalIgnoreCase);
+                        if (!mesmoArquivo) System.IO.File.Copy(fonteFinal, dest, true);
+
+                        long tamanhoNovo = new System.IO.FileInfo(dest).Length;
+                        double economia = (tamanhoOriginal - tamanhoNovo) / 1024.0 / 1024.0;
+                        double porcentagem = tamanhoOriginal > 0
+                            ? ((double)(tamanhoOriginal - tamanhoNovo) / (double)tamanhoOriginal) * 100.0
+                            : 0.0;
+
+                        string aviso = imgIgnoradas > 0
+                            ? $"\n\nAtenção: {imgIgnoradas} imagem(ns) não puderam ser recomprimidas (transparência ou formato não suportado) e foram mantidas como estavam."
+                            : "";
+
+                        if (valeuAPena)
+                        {
+                            MessageBox.Show($"Documento comprimido com sucesso!\n\nSalvo em: {dest}\n\nRedução de tamanho: {economia:F2} MB ({porcentagem:F1}%){aviso}", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
+                        else
+                        {
+                            MessageBox.Show($"O PDF já estava otimizado: a compressão deixaria o arquivo maior, então foi gravada uma cópia do original sem alterações.\n\nArquivo salvo em: {dest}{aviso}", "Compressão Finalizada", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
                     }
-
-                    System.IO.FileInfo fileNovo = new System.IO.FileInfo(dest);
-                    long tamanhoNovo = fileNovo.Length;
-
-                    double economia = (tamanhoOriginal - tamanhoNovo) / 1024.0 / 1024.0;
-                    double porcentagem = ((double)(tamanhoOriginal - tamanhoNovo) / (double)tamanhoOriginal) * 100.0;
-
-                    string aviso = imgIgnoradas > 0
-                        ? $"\n\nAtenção: {imgIgnoradas} imagem(ns) não puderam ser recomprimidas (transparência ou formato não suportado) e foram mantidas como estavam."
-                        : "";
-
-                    if (economia > 0)
+                    finally
                     {
-                        MessageBox.Show($"Documento comprimido com sucesso!\n\nSalvo em: {dest}\n\nRedução de tamanho: {economia:F2} MB ({porcentagem:F1}%){aviso}", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                    else
-                    {
-                        MessageBox.Show($"O PDF já estava otimizado. Nenhuma compressão adicional foi possível.\n\nArquivo salvo em: {dest}{aviso}", "Compressão Finalizada", MessageBoxButton.OK, MessageBoxImage.Information);
+                        try { System.IO.File.Delete(tempComprimido); } catch { }
                     }
 
                     // Carrega o novo arquivo comprimido
@@ -794,6 +976,8 @@ namespace PdfToolbox
                 return;
             }
 
+            if (!ConfirmarPerdaDeAssinatura(_caminhoPdfAtual, "Reorganizar as páginas")) return;
+
             OrganizePagesWindow organizeWindow = new OrganizePagesWindow(_caminhoPdfAtual)
             {
                 Owner = this
@@ -808,6 +992,7 @@ namespace PdfToolbox
         private void BtnAddImage_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(_caminhoPdfAtual)) return;
+            if (!ConfirmarPerdaDeAssinatura(_caminhoPdfAtual, "Adicionar uma imagem")) return;
 
             AddImageWindow imgWindow = new AddImageWindow { Owner = this };
             if (imgWindow.ShowDialog() == true)
@@ -821,8 +1006,8 @@ namespace PdfToolbox
 
                 if (visualWindow.ShowDialog() == true && !string.IsNullOrEmpty(visualWindow.SavedFilePath))
                 {
-                    _caminhoPdfAtual = visualWindow.SavedFilePath;
-                    AbrirDocumento(_caminhoPdfAtual);
+                    // Abre o resultado numa aba nova; não repõe a aba atual (isso duplicava a aba).
+                    AbrirDocumento(visualWindow.SavedFilePath);
                     TxtStatus.Text = "Imagem adicionada e arquivo salvo com sucesso.";
                 }
             }
@@ -831,6 +1016,7 @@ namespace PdfToolbox
         private void BtnFreeEditor_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(_caminhoPdfAtual)) return;
+            if (!ConfirmarPerdaDeAssinatura(_caminhoPdfAtual, "Aplicar anotações")) return;
 
             FreeEditorWindow freeEditorWindow = new FreeEditorWindow(_caminhoPdfAtual);
             freeEditorWindow.Owner = this;
@@ -838,15 +1024,18 @@ namespace PdfToolbox
             // Esconde a MainWindow para focar no editor livre
             this.Hide();
 
-            if (freeEditorWindow.ShowDialog() == true && !string.IsNullOrEmpty(freeEditorWindow.SavedFilePath))
+            string? salvoPeloEditor = freeEditorWindow.ShowDialog() == true ? freeEditorWindow.SavedFilePath : null;
+
+            // Mostra a MainWindow de volta ANTES de abrir a aba: AbrirDocumento mexe na UI
+            // da janela principal e precisa dela visível para o WebView2 inicializar.
+            this.Show();
+
+            if (!string.IsNullOrEmpty(salvoPeloEditor))
             {
-                _caminhoPdfAtual = freeEditorWindow.SavedFilePath;
-                AbrirDocumento(_caminhoPdfAtual);
+                // Abre o resultado numa aba nova; não repõe a aba atual (isso duplicava a aba).
+                AbrirDocumento(salvoPeloEditor);
                 TxtStatus.Text = "Anotações livres aplicadas e arquivo salvo.";
             }
-
-            // Mostra a MainWindow de volta
-            this.Show();
         }
 
         private string GetUniqueFilePath(string originalPath, string suffix)
