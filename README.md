@@ -20,10 +20,34 @@ O **UPDF FCS** é um aplicativo desktop rápido, leve e profissional desenvolvid
 ## 📦 Como Instalar
 
 1. Acesse a aba de [Releases](https://github.com/fernandoc-souza/UPDF/releases) do repositório.
-2. Baixe a versão mais recente anexada: `Instalador_UPDF.zip`.
+2. Baixe o `UPDF_v<versão>.zip` da versão mais recente.
 3. Extraia o conteúdo para uma pasta no seu computador.
-4. Execute o arquivo `Instalador.bat` (ele pedirá permissão de Administrador para criar os atalhos e associar o sistema).
+4. Execute o arquivo `Instalador.bat` (ele pedirá permissão de Administrador para criar os atalhos e registrar o UPDF).
 5. Pronto! O atalho **UPDF** estará na sua Área de Trabalho e Menu Iniciar.
+
+O zip contém:
+
+| Arquivo | Para que serve |
+|---|---|
+| `UPDF.exe` | O programa |
+| `Instalador.bat` | Instala, cria atalhos e registra o UPDF para abrir PDFs |
+| `Desinstalador.bat` | Remove tudo: arquivos, atalhos e registro |
+| `Reparar_AbrirCom.bat` | Conserta o menu "Abrir com" sem reinstalar |
+| `app_icon.png` | Ícone usado pelos atalhos |
+
+### O UPDF não aparece em "Abrir com"
+
+Instaladores até a versão 1.3.3 não criavam a chave `Applications\UPDF.exe`, que é
+justamente o que faz um programa aparecer na lista de "Abrir com". Em quem já tinha
+escolhido o UPDF manualmente uma vez, o Windows guardava essa preferência e o menu
+funcionava; numa máquina nova, não aparecia nada.
+
+Numa instalação já existente, rode o **`Reparar_AbrirCom.bat`** como Administrador —
+ele só corrige o registro, não reinstala nem mexe no seu leitor de PDF padrão.
+
+Para deixar o UPDF como leitor padrão: botão direito num PDF → **Abrir com** →
+**Escolher outro aplicativo** → **UPDF** → **Sempre**. No Windows 10/11 só o próprio
+usuário pode definir o padrão; nenhum instalador consegue fazer isso por você.
 
 ## 🕒 Carimbo de tempo e LTV (assinatura digital)
 
